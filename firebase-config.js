@@ -2,7 +2,7 @@
 // (Configuración del proyecto → Tus apps → Configuración de SDK).
 // Mientras apiKey esté vacío, la app funciona en modo local, sin cuenta.
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyDpPTK9ITMIfbnRa3l2nGn5dC1-GvK_TZ0",
   authDomain: "colecciones-55314.firebaseapp.com",
   projectId: "colecciones-55314",
