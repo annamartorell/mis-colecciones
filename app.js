@@ -1,4 +1,4 @@
-import { TEMPLATES, FIELD_TYPES, ICONS } from './templates.js';
+import { TEMPLATES, FIELD_TYPES } from './templates.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const CLOUD = !!(firebaseConfig && (firebaseConfig.publicApiKey || firebaseConfig.apiKey));
@@ -6,11 +6,6 @@ const DB_ID = (firebaseConfig && firebaseConfig.databaseId) || '(default)';
 const LS_KEY = 'bobina-v2';
 const MAX_PHOTOS = 4;
 const MAX_PHOTO_BYTES = 850000;
-const STATUS = [
-  { l: 'Mi colección', v: 'poseída' },
-  { l: 'Favoritos', v: 'deseada' },
-  { l: 'Todas', v: 'Todas' }
-];
 
 const $ = s => document.querySelector(s);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -22,13 +17,26 @@ let state = { collections: [], items: [] };
 let user = null, fb = null, db = null, auth = null;
 let ready = !CLOUD;
 let view = { name: 'home', id: null };
-let filters = { category: 'Todas', status: 'poseída', q: '' };
+let filters = { category: 'Todas', q: '' };
 let form = null;
 let draft = null;
 
 const curCol = () => state.collections.find(c => c.id === view.id);
 const SPR = '<span></span>'.repeat(14);
-const REEL = `<svg viewBox="0 0 64 64" width="30" height="30" fill="none"><circle cx="32" cy="32" r="26" stroke="#6e2836" stroke-width="3"/><circle cx="32" cy="32" r="7" stroke="#6e2836" stroke-width="3"/><circle cx="32" cy="14" r="4.5" stroke="#6e2836" stroke-width="3"/><circle cx="17" cy="41" r="4.5" stroke="#6e2836" stroke-width="3"/><circle cx="47" cy="41" r="4.5" stroke="#6e2836" stroke-width="3"/></svg>`;
+const svg = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const IC = {
+  back: svg('<path d="M15 5l-7 7 7 7"/>'),
+  settings: svg('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+  user: svg('<circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-3.6 3.9-5.5 7.5-5.5s6.7 1.9 7.5 5.5"/>', 20),
+  plus: svg('<path d="M12 5v14M5 12h14"/>', 24),
+  x: svg('<path d="M6 6l12 12M18 6L6 18"/>', 14),
+  up: svg('<path d="M6 14l6-6 6 6"/>', 16),
+  down: svg('<path d="M6 10l6 6 6-6"/>', 16)
+};
+const STAR = '<polygon points="12,2.5 14.9,8.9 21.8,9.6 16.6,14.2 18.1,21 12,17.5 5.9,21 7.4,14.2 2.2,9.6 9.1,8.9"/>';
+const starSvg = (cls, s) => `<svg class="${cls}" viewBox="0 0 24 24" width="${s}" height="${s}" fill="currentColor" aria-hidden="true">${STAR}</svg>`;
+const starsHtml = r => [1, 2, 3, 4, 5].map(i => starSvg('st' + (i <= r ? ' on' : ''), 11)).join('');
+const logo = (s, stroke = '#b4c3dc') => `<svg class="reel-icon" viewBox="0 0 64 64" width="${s}" height="${s}" fill="none" stroke="${stroke}" stroke-width="2.4" aria-hidden="true"><rect x="8" y="8" width="24" height="48" rx="5"/><rect x="36" y="8" width="20" height="22" rx="5"/><rect x="36" y="34" width="20" height="22" rx="5"/></svg>`;
 
 function toast(msg) {
   const t = document.createElement('div');
@@ -221,7 +229,7 @@ async function addFiles(files) {
 function renderPhotos() {
   const box = $('#photos');
   if (!box || !form) return;
-  box.innerHTML = form.photos.map((p, i) => `<div class="ph"><img src="${p}" alt=""><button data-act="rmPhoto" data-i="${i}">✕</button></div>`).join('')
+  box.innerHTML = form.photos.map((p, i) => `<div class="ph"><img src="${p}" alt=""><button data-act="rmPhoto" data-i="${i}">${IC.x}</button></div>`).join('')
     + (form.photos.length < MAX_PHOTOS ? '<button class="ph add" data-act="addPhoto">+</button>' : '');
 }
 
@@ -248,7 +256,7 @@ function cardInfo(c, it) {
   const spec = [others[0], it.category].filter(Boolean).join(' · ');
   const rf = c.fields.find(f => f.type === 'rating');
   const r = rf ? (+v[rf.id] || 0) : 0;
-  const stars = rf ? '★'.repeat(r) + '☆'.repeat(5 - r) : '';
+  const stars = rf ? starsHtml(r) : '';
   return { eyebrow, title, spec, stars };
 }
 
@@ -261,7 +269,7 @@ function cardHtml(c, it) {
   const { eyebrow, title, spec, stars } = cardInfo(c, it);
   const cover = (it.photos || [])[0];
   return `<div class="card"><div class="sprockets">${SPR}</div>
-    <div class="thumb" data-act="thumb" data-id="${it.id}">${cover ? `<img src="${cover}" alt="">` : REEL}</div>
+    <div class="thumb" data-act="thumb" data-id="${it.id}">${cover ? `<img src="${cover}" alt="">` : logo(30)}</div>
     <div class="cardbody" data-act="openItem" data-id="${it.id}">
       <div>${eyebrow ? `<p class="eyebrow">${esc(eyebrow)}</p>` : ''}<p class="model">${esc(title || 'Sin nombre')}</p></div>
       <div class="specrow"><span class="spec">${esc(spec)}</span>${stars ? `<span class="spec">${stars}</span>` : ''}</div>
@@ -270,11 +278,9 @@ function cardHtml(c, it) {
 }
 
 /* ---------- pantallas ---------- */
-function accountHtml() {
-  if (!CLOUD) return '<span class="muted">Solo en este dispositivo</span>';
-  if (!ready) return '';
-  if (user) return `<span class="muted">${esc(user.displayName || user.email || '')}</span><button class="linkbtn" data-act="logout">Cerrar sesión</button>`;
-  return '<span class="muted">Solo en este dispositivo</span><button class="linkbtn" data-act="login">Iniciar sesión con Google</button>';
+function accountBtn() {
+  if (!CLOUD || !ready) return '';
+  return `<button class="iconbtn${user ? ' on' : ''}" data-act="account" aria-label="${user ? 'Tu cuenta' : 'Iniciar sesión'}">${IC.user}</button>`;
 }
 
 function render() {
@@ -288,17 +294,17 @@ function renderHome() {
   const cols = state.collections;
   $('#app').innerHTML = `<div class="page">
     <div class="topbar">
-      <div class="brandrow"><h1>Bobina</h1><span class="counter">${cols.length} ${cols.length === 1 ? 'colección' : 'colecciones'}</span></div>
-      <div class="userrow">${accountHtml()}</div>
-      <p class="tagline">tus colecciones, cuadro a cuadro</p>
+      <div class="brandrow"><h1>Mis colecciones</h1>
+        <div class="brandright"><span class="counter">${cols.length} ${cols.length === 1 ? 'colección' : 'colecciones'}</span>${accountBtn()}</div>
+      </div>
     </div>
     <div class="content">
       <div class="colgrid">
         ${cols.map(c => {
           const n = state.items.filter(i => i.collectionId === c.id).length;
-          return `<button class="colcard" data-act="openCol" data-id="${c.id}"><span class="ico">${esc(c.icon)}</span><span class="nm">${esc(c.name)}</span><span class="ct">${n} ${n === 1 ? 'pieza' : 'piezas'}</span></button>`;
+          return `<button class="colcard" data-act="openCol" data-id="${c.id}"><span class="nm">${esc(c.name)}</span><span class="ct">${n} ${n === 1 ? 'pieza' : 'piezas'}</span></button>`;
         }).join('')}
-        <button class="colcard newcol" data-act="newCol"><span class="ico">+</span>Nueva colección</button>
+        <button class="colcard newcol" data-act="newCol">+ Nueva colección</button>
       </div>
     </div></div>`;
 }
@@ -308,19 +314,18 @@ function renderCollection() {
   $('#app').innerHTML = `<div class="page">
     <div class="topbar">
       <div class="brandrow">
-        <div class="brandleft"><button class="iconbtn" data-act="home" aria-label="Volver">‹</button><h1>${esc(c.icon)} ${esc(c.name)}</h1></div>
-        <div class="brandright"><span class="counter" id="counter">000/000</span><button class="iconbtn" data-act="editCol" aria-label="Ajustes de la colección">⚙</button></div>
+        <div class="brandleft"><button class="iconbtn" data-act="home" aria-label="Volver">${IC.back}</button><h1>${esc(c.name)}</h1></div>
+        <div class="brandright"><span class="counter" id="counter">000/000</span><button class="iconbtn" data-act="editCol" aria-label="Ajustes de la colección">${IC.settings}</button></div>
       </div>
       <div class="searchwrap" style="margin-top:10px;">
         <input class="search" id="search" placeholder="Buscar…" value="${esc(filters.q)}">
-        <button class="clearsearch" id="clearSearch" data-act="clearSearch" style="${filters.q ? 'display:flex;' : ''}" aria-label="Borrar búsqueda">✕</button>
+        <button class="clearsearch" id="clearSearch" data-act="clearSearch" style="${filters.q ? 'display:flex;' : ''}" aria-label="Borrar búsqueda">${IC.x}</button>
       </div>
       <div class="dial" id="catDial"></div>
-      <div class="tabrow" id="statusDial"></div>
     </div>
     <div class="content"><div class="empty" id="empty"></div><div class="grid" id="grid"></div></div>
   </div>
-  <div class="fab"><button data-act="newItem" aria-label="Añadir pieza">+</button></div>`;
+  <div class="fab"><button data-act="newItem" aria-label="Añadir pieza">${IC.plus}</button></div>`;
   renderDials();
   renderGrid();
 }
@@ -331,7 +336,6 @@ function renderDials() {
   const cd = $('#catDial');
   cd.style.display = c.categories.length ? 'flex' : 'none';
   cd.innerHTML = ['Todas', ...c.categories].map(x => `<button data-act="cat" data-v="${esc(x)}" class="${x === filters.category ? 'active' : ''}">${esc(x)}</button>`).join('');
-  $('#statusDial').innerHTML = STATUS.map(s => `<button data-act="stat" data-v="${s.v}" class="${s.v === filters.status ? 'active' : ''}">${s.l}</button>`).join('');
 }
 
 function renderGrid() {
@@ -341,13 +345,12 @@ function renderGrid() {
   const q = filters.q.trim().toLowerCase();
   const list = all.filter(it =>
     (filters.category === 'Todas' || it.category === filters.category) &&
-    (filters.status === 'Todas' || it.status === filters.status) &&
     (!q || searchText(c, it).includes(q)));
   $('#counter').textContent = pad(list.length) + '/' + pad(all.length);
   const empty = $('#empty');
   if (!all.length) {
     empty.className = 'empty show';
-    empty.innerHTML = `<svg class="reel-icon" viewBox="0 0 64 64" width="44" height="44" fill="none"><circle cx="32" cy="32" r="26" stroke="#6e2836" stroke-width="3"/><circle cx="32" cy="32" r="7" stroke="#6e2836" stroke-width="3"/><circle cx="32" cy="14" r="4.5" stroke="#6e2836" stroke-width="3"/><circle cx="17" cy="41" r="4.5" stroke="#6e2836" stroke-width="3"/><circle cx="47" cy="41" r="4.5" stroke="#6e2836" stroke-width="3"/></svg><h3>Aún no hay piezas</h3><p>Añade la primera pieza de esta colección.</p><button data-act="newItem">Añadir pieza</button>`;
+    empty.innerHTML = `${logo(46, '#4a7fc1')}<h3>Aún no hay piezas</h3><p>Añade la primera pieza de esta colección.</p><button data-act="newItem">Añadir pieza</button>`;
   } else if (!list.length) {
     empty.className = 'empty show';
     empty.innerHTML = '<h3>Nada por aquí</h3><p>No hay piezas con estos filtros.</p>';
@@ -372,7 +375,7 @@ function fieldHtml(f, val) {
     case 'date': return `<div class="field">${lab}<input type="date" data-fid="${f.id}" value="${esc(val)}"></div>`;
     case 'rating': {
       const n = +val || 0;
-      return `<div class="field">${lab}<div class="stars" data-fid="${f.id}" data-val="${n}">${[1, 2, 3, 4, 5].map(i => `<span data-act="star" data-v="${i}" class="${i <= n ? 'on' : ''}">★</span>`).join('')}</div></div>`;
+      return `<div class="field">${lab}<div class="stars" data-fid="${f.id}" data-val="${n}">${[1, 2, 3, 4, 5].map(i => `<span data-act="star" data-v="${i}" class="${i <= n ? 'on' : ''}">${starSvg('', 26)}</span>`).join('')}</div></div>`;
     }
     case 'yesno': return `<div class="field check"><label><input type="checkbox" data-fid="${f.id}" ${val ? 'checked' : ''}> ${esc(f.label)}</label></div>`;
     case 'select': {
@@ -387,7 +390,7 @@ function fieldHtml(f, val) {
 function openItem(id) {
   const c = curCol();
   const it = id ? state.items.find(x => x.id === id) : null;
-  form = { id: it ? it.id : null, photos: it ? [...(it.photos || [])] : [], status: it ? it.status : 'poseída', collectionDirty: false };
+  form = { id: it ? it.id : null, photos: it ? [...(it.photos || [])] : [], collectionDirty: false };
   const v = it ? it.values || {} : {};
   const cats = [...c.categories];
   if (it && it.category && !cats.includes(it.category)) cats.push(it.category);
@@ -398,13 +401,8 @@ function openItem(id) {
       <input type="text" class="newinput" id="f_cat_new" placeholder="Nombre de la categoría">
     </div>
     ${c.fields.map(f => fieldHtml(f, v[f.id])).join('')}
-    <div class="field"><label>Añadir a:</label>
-      <div class="segrow" id="statusRow">
-        <button data-act="setStatus" data-v="poseída" class="${form.status === 'poseída' ? 'on' : ''}">Mi colección</button>
-        <button data-act="setStatus" data-v="deseada" class="${form.status === 'deseada' ? 'on' : ''}">Favoritos</button>
-      </div></div>
     <div class="sheetactions">
-      <button class="btn" data-act="closeSheet">Cancelar</button>
+      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
       ${it ? '<button class="btn danger" data-act="delItem">Eliminar</button>' : ''}
       <button class="btn primary" data-act="saveItem">Guardar</button>
     </div>`);
@@ -442,14 +440,13 @@ function saveItem() {
   if (!hasData) { closeSheet(); return; }
   const now = Date.now();
   let it = form.id ? state.items.find(x => x.id === form.id) : null;
-  if (it) Object.assign(it, { category, status: form.status, photos: form.photos, values, updatedAt: now });
+  if (it) Object.assign(it, { category, status: 'poseída', photos: form.photos, values, updatedAt: now });
   else {
-    it = { id: uid(), collectionId: c.id, category, status: form.status, photos: form.photos, values, createdAt: now, updatedAt: now };
+    it = { id: uid(), collectionId: c.id, category, status: 'poseída', photos: form.photos, values, createdAt: now, updatedAt: now };
     state.items.push(it);
   }
   const dirty = form.collectionDirty;
   closeSheet();
-  if (filters.status !== 'Todas' && filters.status !== it.status) filters.status = it.status;
   if (filters.category !== 'Todas' && filters.category !== it.category) filters.category = 'Todas';
   if (dirty) dbSet('collections', c);
   dbSet('items', it);
@@ -474,8 +471,8 @@ function openNewCol() {
   openSheet(`<h2>Nueva colección</h2>
     <div class="field"><label>Nombre (opcional)</label><input type="text" id="n_name" placeholder="Si lo dejas vacío usamos el de la plantilla" style="display:block;"></div>
     <p class="hint">Elige una plantilla o empieza desde cero. Después puedes cambiar campos y categorías.</p>
-    <div class="tpls">${Object.entries(TEMPLATES).map(([k, t]) => `<button class="tpl" data-act="pickTpl" data-k="${k}"><span>${t.icon}</span>${esc(t.name)}</button>`).join('')}</div>
-    <div class="sheetactions"><button class="btn" data-act="closeSheet">Cancelar</button></div>`);
+    <div class="tpls">${Object.entries(TEMPLATES).map(([k, t]) => `<button class="tpl" data-act="pickTpl" data-k="${k}">${esc(t.name)}</button>`).join('')}</div>
+    <div class="sheetactions"><button class="btn ghost" data-act="closeSheet">Cancelar</button></div>`);
 }
 
 function pickTpl(k) {
@@ -490,7 +487,7 @@ function pickTpl(k) {
 
 function openCol(id) {
   view = { name: 'col', id };
-  filters = { category: 'Todas', status: 'poseída', q: '' };
+  filters = { category: 'Todas', q: '' };
   history.pushState({ col: true }, '');
   render();
 }
@@ -531,20 +528,19 @@ function renderEditCol() {
   const top = $('#sheet').scrollTop;
   openSheet(`<h2>Editar colección</h2>
     <div class="field"><label>Nombre</label><input type="text" id="c_name" value="${esc(draft.name)}" style="display:block;"></div>
-    <div class="field"><label>Icono</label><div class="icons">${ICONS.map(i => `<button data-act="pickIcon" data-v="${i}" class="${i === draft.icon ? 'on' : ''}">${i}</button>`).join('')}</div></div>
     <div class="field"><label>Categorías</label>
-      ${draft.cats.map((r, i) => `<div class="rowedit"><input type="text" data-cat="${i}" value="${esc(r.name)}"><button data-act="catUp" data-i="${i}">↑</button><button data-act="catDown" data-i="${i}">↓</button><button data-act="catDel" data-i="${i}">✕</button></div>`).join('')}
+      ${draft.cats.map((r, i) => `<div class="rowedit"><input type="text" data-cat="${i}" value="${esc(r.name)}"><button data-act="catUp" data-i="${i}">${IC.up}</button><button data-act="catDown" data-i="${i}">${IC.down}</button><button data-act="catDel" data-i="${i}">${IC.x}</button></div>`).join('')}
       <div class="rowedit"><input type="text" id="newCat" placeholder="Nueva categoría"><button data-act="catAdd">+</button></div>
     </div>
     <div class="field"><label>Campos</label>
-      ${draft.fields.map((f, i) => `<div class="fieldedit"><div class="rowedit"><input type="text" data-flabel="${i}" value="${esc(f.label)}"><button data-act="fieldUp" data-i="${i}">↑</button><button data-act="fieldDown" data-i="${i}">↓</button><button data-act="fieldDel" data-i="${i}">✕</button></div>
+      ${draft.fields.map((f, i) => `<div class="fieldedit"><div class="rowedit"><input type="text" data-flabel="${i}" value="${esc(f.label)}"><button data-act="fieldUp" data-i="${i}">${IC.up}</button><button data-act="fieldDown" data-i="${i}">${IC.down}</button><button data-act="fieldDel" data-i="${i}">${IC.x}</button></div>
         <div class="rowedit"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span>${f.type === 'select' ? `<input type="text" data-fopts="${i}" placeholder="Opciones separadas por comas" value="${esc((f.options || []).join(', '))}">` : ''}</div></div>`).join('')}
       <div class="rowedit"><input type="text" id="newFieldLabel" placeholder="Nuevo campo"><select id="newFieldType">${Object.entries(FIELD_TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><button data-act="fieldAdd">+</button></div>
     </div>
     <div class="field"><label>Título de la tarjeta</label><select id="c_title">${optsFor(draft.cardTitle)}</select></div>
     <div class="field"><label>Texto sobre el título</label><select id="c_eyebrow"><option value="">Ninguno</option>${optsFor(draft.cardEyebrow)}</select></div>
     <div class="sheetactions">
-      <button class="btn" data-act="closeSheet">Cancelar</button>
+      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
       <button class="btn danger" data-act="delCol">Eliminar</button>
       <button class="btn primary" data-act="saveCol">Guardar</button>
     </div>`);
@@ -578,7 +574,6 @@ function saveCol() {
     if (ch) changed.push(it);
   });
   c.name = draft.name.trim() || c.name;
-  c.icon = draft.icon;
   c.categories = newCats;
   c.fields = draft.fields.filter(f => f.label.trim()).map(f => ({ ...f, label: f.label.trim() }));
   const ok = id => c.fields.some(f => f.id === id);
@@ -622,7 +617,6 @@ const A = {
     if (it && it.photos && it.photos.length) openLightbox(it.photos); else openItem(el.dataset.id);
   },
   cat: el => { filters.category = el.dataset.v; renderDials(); renderGrid(); },
-  stat: el => { filters.status = el.dataset.v; renderDials(); renderGrid(); },
   clearSearch: () => {
     filters.q = '';
     const s = $('#search'); s.value = ''; s.focus();
@@ -630,13 +624,13 @@ const A = {
     renderGrid();
   },
   login: () => login(),
-  logout: () => { if (fb) fb.signOut(auth); },
+  account: () => {
+    if (user) openSheet(`<h2>Tu cuenta</h2><p class="hint">${esc(user.displayName || '')}${user.displayName && user.email ? '<br>' : ''}${esc(user.email || '')}</p><div class="sheetactions"><button class="btn ghost" data-act="closeSheet">Cerrar</button><button class="btn danger" data-act="logout">Cerrar sesión</button></div>`);
+    else login();
+  },
+  logout: () => { closeSheet(); if (fb) fb.signOut(auth); },
   addPhoto: () => $('#photoInput').click(),
   rmPhoto: el => { form.photos.splice(+el.dataset.i, 1); renderPhotos(); },
-  setStatus: el => {
-    form.status = el.dataset.v;
-    document.querySelectorAll('#statusRow button').forEach(b => b.classList.toggle('on', b.dataset.v === form.status));
-  },
   star: el => {
     const st = el.closest('.stars');
     let n = +el.dataset.v;
@@ -644,7 +638,6 @@ const A = {
     st.dataset.val = n;
     st.querySelectorAll('span').forEach(s => s.classList.toggle('on', +s.dataset.v <= n));
   },
-  pickIcon: el => { syncDraft(); draft.icon = el.dataset.v; renderEditCol(); },
   catAdd: () => {
     syncDraft();
     const v = $('#newCat').value.trim();

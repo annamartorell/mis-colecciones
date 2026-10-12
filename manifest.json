@@ -1,12 +1,12 @@
 {
-  "name": "Bobina — tus colecciones",
-  "short_name": "Bobina",
+  "name": "Mis colecciones",
+  "short_name": "Mis colecciones",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#150c0e",
-  "theme_color": "#150c0e",
+  "background_color": "#080d16",
+  "theme_color": "#080d16",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
