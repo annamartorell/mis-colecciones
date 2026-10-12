@@ -1,7 +1,8 @@
 import { TEMPLATES, FIELD_TYPES, ICONS } from './templates.js';
 import { firebaseConfig } from './firebase-config.js';
 
-const CLOUD = !!(firebaseConfig && firebaseConfig.apiKey);
+const CLOUD = !!(firebaseConfig && (firebaseConfig.publicApiKey || firebaseConfig.apiKey));
+const DB_ID = (firebaseConfig && firebaseConfig.databaseId) || '(default)';
 const LS_KEY = 'bobina-v2';
 const MAX_PHOTOS = 4;
 const MAX_PHOTO_BYTES = 850000;
@@ -117,11 +118,12 @@ async function initFirebase() {
       import(base + 'firebase-auth.js'),
       import(base + 'firebase-firestore.js')
     ]);
-    const app = appM.initializeApp(firebaseConfig);
+    const { publicApiKey, databaseId, ...rest } = firebaseConfig;
+    const app = appM.initializeApp({ ...rest, apiKey: publicApiKey || firebaseConfig.apiKey });
     auth = authM.getAuth(app);
     try {
-      db = fsM.initializeFirestore(app, { localCache: fsM.persistentLocalCache({ tabManager: fsM.persistentMultipleTabManager() }) });
-    } catch (e) { db = fsM.getFirestore(app); }
+      db = fsM.initializeFirestore(app, { localCache: fsM.persistentLocalCache({ tabManager: fsM.persistentMultipleTabManager() }) }, DB_ID);
+    } catch (e) { db = fsM.getFirestore(app, DB_ID); }
     fb = { ...authM, ...fsM };
     authM.onAuthStateChanged(auth, onAuth);
   } catch (e) {
