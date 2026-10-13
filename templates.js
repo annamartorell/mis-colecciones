@@ -11,9 +11,9 @@ export const FIELD_TYPES = {
 export const FIELD_HELP = {
   text: 'Una línea de texto corto.',
   longtext: 'Varias líneas, ideal para notas.',
-  number: 'Solo números.',
+  number: '',
   date: 'Se elige en un calendario.',
-  rating: 'Estrellas del 1 al 5. Su nombre no se puede cambiar.',
+  rating: '',
   select: 'Una lista para elegir.',
   yesno: 'Una casilla para marcar (sí / no).'
 };
@@ -35,6 +35,12 @@ const BRANDS = ['Agfa','Canon','Contax','Fujifilm','Hasselblad','Kodak','Leica',
 // nameLabel: cómo se llama el nombre obligatorio de cada pieza
 // subtitle: id del campo que sale como subtítulo en la tarjeta
 export const TEMPLATES = {
+  personalizada: {
+    name: 'Personalizada', icon: 'spark', nameLabel: 'Nombre',
+    categories: [],
+    fields: [],
+    subtitle: ''
+  },
   camaras: {
     name: 'Cámaras', icon: 'camera', nameLabel: 'Modelo',
     categories: ['35mm', 'Instantánea', 'Digital'],
@@ -105,11 +111,5 @@ export const TEMPLATES = {
       { id: 'notas', label: 'Notas', type: 'longtext' }
     ],
     subtitle: 'artista'
-  },
-  personalizada: {
-    name: 'Personalizada', icon: 'spark', nameLabel: 'Nombre',
-    categories: [],
-    fields: [],
-    subtitle: ''
   }
 };

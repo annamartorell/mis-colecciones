@@ -180,8 +180,7 @@ button{font-family:inherit;}
 .chip{background:transparent;border:1px solid var(--brass-dim);color:var(--paper);border-radius:16px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
 .infobtn{width:22px;height:22px;border-radius:50%;border:1px solid var(--brass);background:transparent;color:var(--brass);font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;padding:0;}
 .rowedit .addbtn{width:38px;height:38px;border-color:var(--brass-dim);color:var(--brass);}
-.rowedit .addbtn.ready,.addbtn.ready{background:var(--brass);border-color:var(--brass);color:#fff;animation:pulse 1.3s infinite;}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(74,127,193,.6);}70%{box-shadow:0 0 0 9px rgba(74,127,193,0);}100%{box-shadow:0 0 0 0 rgba(74,127,193,0);}}
+.rowedit .addbtn.ready,.addbtn.ready{background:var(--brass);border-color:var(--brass);color:#fff;}
 
 /* botones en fila */
 .sheetactions.rowfix{align-items:center;}
@@ -194,3 +193,21 @@ button{font-family:inherit;}
 .modal p{font-size:13.5px;line-height:1.5;color:var(--text-on-ink);margin:0 0 10px;}
 .modal p b{font-weight:500;color:#fff;}
 .modal .btn{width:100%;margin-top:6px;flex:none;}
+
+/* Sí/No: botón redondo */
+.field.ynrow{display:flex;align-items:center;gap:14px;cursor:pointer;padding:4px 0;margin-bottom:14px;}
+.yncircle{width:46px;height:46px;border-radius:50%;border:1.5px solid var(--brass-dim);background:var(--ink);display:flex;align-items:center;justify-content:center;color:transparent;transition:background .15s,border-color .15s,color .15s,box-shadow .15s;flex:none;}
+.field.ynrow.on .yncircle{background:var(--brass);border-color:var(--brass);color:#fff;box-shadow:0 0 0 5px rgba(74,127,193,.18);}
+.ynlabel{font-size:15px;font-weight:500;color:var(--paper);}
+.field.ynrow:not(.on) .ynlabel{color:var(--text-on-ink-dim);}
+
+/* subtítulo de la tarjeta: opciones */
+.optchips{display:flex;flex-wrap:wrap;gap:8px;}
+.optchip{border:1px solid var(--line);background:var(--ink);color:var(--text-on-ink-dim);border-radius:20px;padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s,color .15s;}
+.optchip.on{background:var(--brass);border-color:var(--brass);color:#fff;}
+
+/* selector de icono */
+.icongrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
+.iconopt{aspect-ratio:1;border:1px solid var(--line);background:var(--ink);border-radius:10px;color:var(--text-on-ink-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+.iconopt.on{border-color:var(--brass);background:#14233f;color:#fff;}
+.iconopt svg{display:block;}

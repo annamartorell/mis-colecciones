@@ -37,22 +37,36 @@ const IC = {
   up: svg('<path d="M6 14l6-6 6 6"/>', 16),
   down: svg('<path d="M6 10l6 6 6-6"/>', 16),
   pencil: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', 16),
-  lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 13)
+  lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 13),
+  check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 22)
 };
 const ICON_PATHS = {
+  spark: '<path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/>',
   camera: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   fan: '<path d="M12 20L4 9a10 10 0 0 1 16 0z"/><path d="M12 20V6.5M12 20L7.5 7.3M12 20l4.5-12.7"/>',
   coin: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/>',
   stamp: '<path d="M5 5h14v14H5z"/><rect x="8.5" y="8.5" width="7" height="7"/>',
   book: '<path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v15H6.5A1.5 1.5 0 0 0 5 20.5z"/><path d="M5 20.5A1.5 1.5 0 0 1 6.5 19H19"/>',
   vinyl: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/><path d="M12 7a5 5 0 0 1 5 5"/>',
-  spark: '<path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/>'
+  watch: '<circle cx="12" cy="12" r="5.5"/><path d="M12 9.5V12l1.8 1.2M9 6.5L9.7 3h4.6L15 6.5M9 17.5l.7 3.5h4.6l.7-3.5"/>',
+  car: '<path d="M4 15v-3.5L6.2 7h11.6L20 11.5V15z"/><path d="M4 11.5h16"/><circle cx="8" cy="16.5" r="1.8"/><circle cx="16" cy="16.5" r="1.8"/>',
+  game: '<rect x="3.5" y="8" width="17" height="9" rx="4.5"/><path d="M8 10.5v4M6 12.5h4"/><circle cx="15.5" cy="11.5" r=".7"/><circle cx="17.5" cy="13.5" r=".7"/>',
+  plant: '<path d="M12 20v-8"/><path d="M12 12c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 15c0-3-2.5-5-6-5 0 3 2.5 5 6 5z"/>',
+  music: '<path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/>',
+  art: '<path d="M12 4a8 8 0 1 0 0 16c1.3 0 2-.8 2-1.7 0-1.3-1-1.6-1-2.8 0-1 .8-1.5 1.8-1.5H17a3 3 0 0 0 3-3C20 7.1 16.4 4 12 4z"/><circle cx="8" cy="11" r=".8"/><circle cx="11" cy="7.8" r=".8"/><circle cx="15" cy="8.5" r=".8"/>',
+  gem: '<path d="M6.5 4h11L21 9l-9 11L3 9z"/><path d="M3 9h18M9.5 4L8 9l4 11M14.5 4L16 9l-4 11"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5v1.5A3 3 0 0 0 8 10.5M16 6h3v1.5a3 3 0 0 1-3 3M12 13v4M9 20h6M10 17h4"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  star: '<polygon points="12,3.5 14.6,9.2 20.8,9.8 16.1,14 17.5,20.1 12,16.9 6.5,20.1 7.9,14 3.2,9.8 9.4,9.2"/>',
+  film: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 5v14M16 5v14M4 9.5h4M4 14.5h4M16 9.5h4M16 14.5h4"/>',
+  key: '<circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21M17 12v3M20 12v2.5"/>',
+  gift: '<rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M3 7h18v3H3zM12 7v13M12 7c-1-3-5-3.5-5-1.5S11 7 12 7zM12 7c1-3 5-3.5 5-1.5S13 7 12 7z"/>',
+  bottle: '<path d="M10 3h4v4l1.5 3.5V20a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V10.5L10 7z"/>'
 };
 const ICON_MAP = { '📷': 'camera', '🌸': 'fan', '🪙': 'coin', '✉️': 'stamp', '📚': 'book', '💿': 'vinyl', '✨': 'spark' };
-const cicon = (c, s = 20) => {
-  const k = ICON_PATHS[c.icon] ? c.icon : (ICON_MAP[c.icon] || 'spark');
-  return `<svg class="cicon" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[k]}</svg>`;
-};
+const iconSvg = (k, s = 20, sw = 1.6, cls = 'cicon') => `<svg class="${cls}" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[k] || ICON_PATHS.spark}</svg>`;
+const iconKey = c => ICON_PATHS[c.icon] ? c.icon : (ICON_MAP[c.icon] || 'spark');
+const cicon = (c, s = 20) => iconSvg(iconKey(c), s);
 const logo = (s, stroke = '#b4c3dc') => `<svg class="reel-icon" viewBox="0 0 64 64" width="${s}" height="${s}" fill="none" stroke="${stroke}" stroke-width="2.4" aria-hidden="true"><rect x="8" y="8" width="24" height="48" rx="5"/><rect x="36" y="8" width="20" height="22" rx="5"/><rect x="36" y="34" width="20" height="22" rx="5"/></svg>`;
 
 function toast(msg) {
@@ -70,7 +84,7 @@ const INFO = {
     h: `<p>Cada pieza tiene siempre un <b>nombre</b> (obligatorio, no se puede quitar). Además puedes guardar los datos que quieras:</p>
       <p><b>Extras:</b> toca uno de los sugeridos (Notas, Valoración, Material…) y se añade al momento. Si lo quitas, vuelve a aparecer ahí por si lo quieres de nuevo.</p>
       <p><b>Campo propio:</b> escribe el nombre, elige el tipo y pulsa el botón <b>+</b>. Hasta que no lo pulses no se añade.</p>
-      <p><b>Tipos:</b> Texto (una línea), Texto largo (notas), Número, Fecha, Valoración (estrellas, su nombre no se cambia), Lista (opciones separadas por comas) y Sí/No (casilla).</p>
+      <p><b>Tipos:</b> Texto (una línea), Texto largo (notas), Número, Fecha, Valoración (estrellas), Lista (opciones separadas por comas) y Sí/No (casilla).</p>
       <p>Con las flechas cambias el orden y con la X quitas el campo. Al quitar uno se borran sus datos de todas las piezas cuando guardes.</p>`
   },
   cats: {
@@ -446,7 +460,7 @@ function fieldHtml(f, val) {
       const n = +val || 0;
       return `<div class="field">${lab}<div class="stars" data-fid="${f.id}" data-val="${n}">${[1, 2, 3, 4, 5].map(i => `<span data-act="star" data-v="${i}" class="${i <= n ? 'on' : ''}">${starSvg(26)}</span>`).join('')}</div></div>`;
     }
-    case 'yesno': return `<div class="field check"><label><input type="checkbox" data-fid="${f.id}" ${val ? 'checked' : ''}> ${esc(f.label)}</label></div>`;
+    case 'yesno': return `<div class="field ynrow${val ? ' on' : ''}" data-act="yn" data-fid="${f.id}" data-val="${val ? 1 : 0}"><span class="yncircle">${IC.check}</span><span class="ynlabel">${esc(f.label)}</span></div>`;
     case 'select': {
       const opts = f.options || [];
       const custom = val && !opts.includes(val);
@@ -487,7 +501,7 @@ function readItemValues(c) {
     const el = document.querySelector(`#sheet [data-fid="${f.id}"]`);
     if (!el) return;
     if (f.type === 'rating') values[f.id] = +el.dataset.val || 0;
-    else if (f.type === 'yesno') values[f.id] = el.checked;
+    else if (f.type === 'yesno') values[f.id] = el.dataset.val === '1';
     else if (f.type === 'select') {
       let v = el.value;
       if (v === '__other__') {
@@ -542,9 +556,8 @@ function delItem() {
 function openNewCol() {
   selTpl = null;
   openSheet(`<h2>Nueva colección</h2>
-    <p class="hint">1. Elige una plantilla o empieza desde cero. Después podrás cambiar sus categorías y datos.</p>
+    <p class="hint">Elige una plantilla o empieza con una personalizada.</p>
     <div class="tpls">${Object.entries(TEMPLATES).map(([k, t]) => `<button class="tpl" data-act="pickTpl" data-k="${k}">${esc(t.name)}</button>`).join('')}</div>
-    <div class="field"><label>2. Nombre de la colección</label><input type="text" id="n_name" placeholder="Elige una plantilla…"></div>
     <div class="sheetactions rowfix">
       <button class="btn primary" data-act="createCol">Crear colección</button>
       <button class="btn ghost" data-act="closeSheet">Cancelar</button>
@@ -554,15 +567,11 @@ function openNewCol() {
 function pickTpl(k) {
   selTpl = k;
   document.querySelectorAll('.tpl').forEach(b => b.classList.toggle('on', b.dataset.k === k));
-  const n = $('#n_name');
-  n.placeholder = k === 'personalizada' ? 'Ponle un nombre a tu colección' : TEMPLATES[k].name;
 }
 
 function createCol() {
   if (!selTpl) { toast('Elige una plantilla para empezar'); return; }
-  const name = $('#n_name').value.trim();
-  if (selTpl === 'personalizada' && !name) { toast('Ponle un nombre a tu colección'); $('#n_name').focus(); return; }
-  const c = makeCollection(selTpl, name || null, state.collections.length);
+  const c = makeCollection(selTpl, selTpl === 'personalizada' ? 'Nueva colección' : null, state.collections.length);
   state.collections.push(c);
   closeSheet();
   dbSet('collections', c);
@@ -585,7 +594,7 @@ function goHome() {
 /* ----- ajustes de la colección (nombre, datos de cada pieza, subtítulo) ----- */
 function openEditCol() {
   const c = curCol();
-  draft = { name: c.name, fields: clone(c.fields), subtitle: c.subtitle || '', newFieldLabel: '', newFieldType: 'text' };
+  draft = { name: c.name, icon: iconKey(c), fields: clone(c.fields), subtitle: c.subtitle || '', newFieldLabel: '', newFieldType: 'text' };
   renderEditCol();
 }
 
@@ -601,6 +610,10 @@ function syncDraft() {
   const nt = $('#newFieldType'); if (nt) draft.newFieldType = nt.value;
 }
 
+const helpOf = f => f.type === 'select'
+  ? 'Escribe el nombre de cada opción separado por comas. Así las tendrás en la lista al añadir o editar una pieza.'
+  : (FIELD_HELP[f.type] || '');
+
 function fieldRowHtml(f, i) {
   const locked = f.type === 'rating';
   return `<div class="fieldedit">
@@ -609,7 +622,7 @@ function fieldRowHtml(f, i) {
       : `<input type="text" data-flabel="${i}" value="${esc(f.label)}" placeholder="Nombre del campo">`}
       <button data-act="fieldUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="fieldDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="fieldDel" data-i="${i}" aria-label="Quitar">${IC.x}</button></div>
     <div class="rowedit meta"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span>${f.type === 'select' ? `<input type="text" data-fopts="${i}" placeholder="Madera, Tela, Papel…" value="${esc((f.options || []).join(', '))}">` : ''}</div>
-    <p class="help">${f.type === 'select' ? 'Escribe el nombre de cada opción separado por comas. Así las tendrás en la lista al añadir o editar una pieza.' : esc(FIELD_HELP[f.type] || '')}</p>
+    ${helpOf(f) ? `<p class="help">${esc(helpOf(f))}</p>` : ''}
   </div>`;
 }
 
@@ -623,6 +636,10 @@ function renderEditCol() {
     <div class="sect">
       <h3>Nombre de la colección</h3>
       <div class="field"><input type="text" id="c_name" value="${esc(draft.name)}"></div>
+    </div>
+    <div class="sect">
+      <h3>Icono</h3>
+      <div class="icongrid">${Object.keys(ICON_PATHS).map(k => `<button class="iconopt${k === draft.icon ? ' on' : ''}" data-act="pickIcon" data-v="${k}" aria-label="Icono ${k}">${iconSvg(k, 22, 1.6, 'pk')}</button>`).join('')}</div>
     </div>
     <div class="sect">
       <div class="secthead"><h3>Datos de cada pieza</h3><button class="infobtn" data-act="info" data-k="fields" aria-label="Más información">i</button></div>
@@ -642,7 +659,7 @@ function renderEditCol() {
     <div class="sect">
       <h3>Subtítulo de la tarjeta</h3>
       <p class="hint">Un dato que aparece bajo el nombre en cada tarjeta. En la tarjeta solo hay nombre y subtítulo.</p>
-      <select id="c_sub"><option value="">Ninguno</option>${subOpts.map(f => `<option value="${f.id}" ${draft.subtitle === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select>
+      <div class="optchips">${[{ id: '', label: 'Ninguno' }, ...subOpts].map(o => `<button class="optchip${draft.subtitle === o.id ? ' on' : ''}" data-act="setSub" data-v="${o.id}">${esc(o.label)}</button>`).join('')}</div>
     </div>
     <div class="sheetactions rowfix">
       <button class="btn primary" data-act="saveCol">Guardar</button>
@@ -672,6 +689,7 @@ function saveCol() {
     if (ch) changed.push(it);
   });
   c.name = draft.name.trim();
+  c.icon = draft.icon;
   c.fields = draft.fields.map(f => ({ ...f, label: f.label.trim() }));
   c.subtitle = ids.has(draft.subtitle) ? draft.subtitle : '';
   closeSheet();
@@ -709,10 +727,9 @@ function renderEditCats() {
   const top = $('#sheet').scrollTop;
   openSheet(`<div class="secthead"><h2>Categorías</h2><button class="infobtn" data-act="info" data-k="cats" aria-label="Más información">i</button></div>
     <p class="hint">Sirven para agrupar y filtrar tus piezas. Puedes cambiar el nombre de todas, reordenarlas o borrarlas.</p>
-    <div class="lockedrow"><span>${IC.lock}Todas</span><span class="tag">Siempre está</span></div>
+    <div class="lockedrow"><span>${IC.lock}Todas</span></div>
     ${cdraft.rows.map((r, i) => `<div class="rowedit"><input type="text" data-cat="${i}" value="${esc(r.name)}" placeholder="Nombre de la categoría"><button data-act="catUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="catDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="catDel" data-i="${i}" aria-label="Borrar">${IC.x}</button></div>`).join('')}
     <p class="subhead">Añadir una categoría</p>
-    <p class="hint">Escribe el nombre (es obligatorio) y pulsa el botón <b>+</b> para añadirla.</p>
     <div class="rowedit">
       <input type="text" id="newCat" data-addinput="catAdd" placeholder="Nombre de la nueva categoría" value="${esc(cdraft.newCat)}">
       <button class="addbtn${cdraft.newCat.trim() ? ' ready' : ''}" data-act="catAdd" aria-label="Añadir categoría">${IC.plus}</button>
@@ -796,6 +813,12 @@ const A = {
     st.dataset.val = n;
     st.querySelectorAll('span').forEach(s => s.classList.toggle('on', +s.dataset.v <= n));
   },
+  yn: el => {
+    el.dataset.val = el.dataset.val === '1' ? '0' : '1';
+    el.classList.toggle('on', el.dataset.val === '1');
+  },
+  setSub: el => { syncDraft(); draft.subtitle = el.dataset.v; renderEditCol(); },
+  pickIcon: el => { syncDraft(); draft.icon = el.dataset.v; renderEditCol(); },
   catAdd: () => {
     syncCats();
     const v = cdraft.newCat.trim();
