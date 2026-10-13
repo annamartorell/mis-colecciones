@@ -1,4 +1,4 @@
-import { TEMPLATES, FIELD_TYPES } from './templates.js';
+import { TEMPLATES, FIELD_TYPES, FIELD_HELP, EXTRAS } from './templates.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const CLOUD = !!(firebaseConfig && (firebaseConfig.publicApiKey || firebaseConfig.apiKey));
@@ -20,22 +20,39 @@ let view = { name: 'home', id: null };
 let filters = { category: 'Todas', q: '' };
 let form = null;
 let draft = null;
+let cdraft = null;
+let selTpl = null;
+let autoOpened = false;
 
 const curCol = () => state.collections.find(c => c.id === view.id);
-const SPR = '<span></span>'.repeat(14);
+
+/* ---------- iconos vectoriales ---------- */
 const svg = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const IC = {
   back: svg('<path d="M15 5l-7 7 7 7"/>'),
   settings: svg('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
   user: svg('<circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-3.6 3.9-5.5 7.5-5.5s6.7 1.9 7.5 5.5"/>', 20),
-  plus: svg('<path d="M12 5v14M5 12h14"/>', 24),
+  plus: svg('<path d="M12 5v14M5 12h14"/>', 22),
   x: svg('<path d="M6 6l12 12M18 6L6 18"/>', 14),
   up: svg('<path d="M6 14l6-6 6 6"/>', 16),
-  down: svg('<path d="M6 10l6 6 6-6"/>', 16)
+  down: svg('<path d="M6 10l6 6 6-6"/>', 16),
+  pencil: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', 16),
+  lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 13)
 };
-const STAR = '<polygon points="12,2.5 14.9,8.9 21.8,9.6 16.6,14.2 18.1,21 12,17.5 5.9,21 7.4,14.2 2.2,9.6 9.1,8.9"/>';
-const starSvg = (cls, s) => `<svg class="${cls}" viewBox="0 0 24 24" width="${s}" height="${s}" fill="currentColor" aria-hidden="true">${STAR}</svg>`;
-const starsHtml = r => [1, 2, 3, 4, 5].map(i => starSvg('st' + (i <= r ? ' on' : ''), 11)).join('');
+const ICON_PATHS = {
+  camera: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  fan: '<path d="M12 20L4 9a10 10 0 0 1 16 0z"/><path d="M12 20V6.5M12 20L7.5 7.3M12 20l4.5-12.7"/>',
+  coin: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/>',
+  stamp: '<path d="M5 5h14v14H5z"/><rect x="8.5" y="8.5" width="7" height="7"/>',
+  book: '<path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v15H6.5A1.5 1.5 0 0 0 5 20.5z"/><path d="M5 20.5A1.5 1.5 0 0 1 6.5 19H19"/>',
+  vinyl: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/><path d="M12 7a5 5 0 0 1 5 5"/>',
+  spark: '<path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/>'
+};
+const ICON_MAP = { '📷': 'camera', '🌸': 'fan', '🪙': 'coin', '✉️': 'stamp', '📚': 'book', '💿': 'vinyl', '✨': 'spark' };
+const cicon = (c, s = 20) => {
+  const k = ICON_PATHS[c.icon] ? c.icon : (ICON_MAP[c.icon] || 'spark');
+  return `<svg class="cicon" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[k]}</svg>`;
+};
 const logo = (s, stroke = '#b4c3dc') => `<svg class="reel-icon" viewBox="0 0 64 64" width="${s}" height="${s}" fill="none" stroke="${stroke}" stroke-width="2.4" aria-hidden="true"><rect x="8" y="8" width="24" height="48" rx="5"/><rect x="36" y="8" width="20" height="22" rx="5"/><rect x="36" y="34" width="20" height="22" rx="5"/></svg>`;
 
 function toast(msg) {
@@ -43,34 +60,82 @@ function toast(msg) {
   t.className = 'toast';
   t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2800);
+  setTimeout(() => t.remove(), 3000);
 }
+
+/* ---------- textos de ayuda (los largos van en una ventana con la "i") ---------- */
+const INFO = {
+  fields: {
+    t: 'Datos de cada pieza',
+    h: `<p>Cada pieza tiene siempre un <b>nombre</b> (obligatorio, no se puede quitar). Además puedes guardar los datos que quieras:</p>
+      <p><b>Extras:</b> toca uno de los sugeridos (Notas, Valoración, Material…) y se añade al momento. Si lo quitas, vuelve a aparecer ahí por si lo quieres de nuevo.</p>
+      <p><b>Campo propio:</b> escribe el nombre, elige el tipo y pulsa el botón <b>+</b>. Hasta que no lo pulses no se añade.</p>
+      <p><b>Tipos:</b> Texto (una línea), Texto largo (notas), Número, Fecha, Valoración (estrellas, su nombre no se cambia), Lista (opciones separadas por comas) y Sí/No (casilla).</p>
+      <p>Con las flechas cambias el orden y con la X quitas el campo. Al quitar uno se borran sus datos de todas las piezas cuando guardes.</p>`
+  },
+  cats: {
+    t: 'Categorías',
+    h: `<p>Las categorías sirven para agrupar y filtrar tus piezas. Cada pieza puede tener una (o ninguna).</p>
+      <p><b>Todas</b> siempre está y no se puede editar. Las demás puedes renombrarlas, reordenarlas, borrarlas o crear nuevas.</p>
+      <p>Para añadir una, escribe el nombre (es obligatorio) y pulsa el botón <b>+</b>.</p>
+      <p>Si renombras una categoría, las piezas que la tenían se actualizan solas. Si la borras, esas piezas se quedan sin categoría.</p>`
+  }
+};
+
+function showInfo(k) {
+  const d = INFO[k];
+  if (!d) return;
+  const m = document.createElement('div');
+  m.className = 'modalbg';
+  m.innerHTML = `<div class="modal"><h3>${esc(d.t)}</h3>${d.h}<button class="btn primary" data-act="closeInfo">Entendido</button></div>`;
+  document.body.appendChild(m);
+}
+const closeInfo = () => document.querySelectorAll('.modalbg').forEach(m => m.remove());
 
 /* ---------- datos ---------- */
 function makeCollection(key, name, order) {
   const t = TEMPLATES[key];
   return {
-    id: uid(),
-    name: name || t.name,
-    icon: t.icon,
-    categories: [...t.categories],
-    fields: clone(t.fields),
-    cardTitle: t.cardTitle,
-    cardEyebrow: t.cardEyebrow,
-    order,
-    createdAt: Date.now()
+    id: uid(), name: name || t.name, icon: t.icon, nameLabel: t.nameLabel,
+    categories: [...t.categories], fields: clone(t.fields), subtitle: t.subtitle,
+    order, createdAt: Date.now()
   };
 }
 
+// Convierte colecciones y piezas del formato anterior (título como campo) al nuevo (nombre fijo + subtítulo)
+function normalizeState(st) {
+  const ch = { c: [], i: [] };
+  for (const c of st.collections) {
+    if (c.nameLabel !== undefined) continue;
+    const tf = (c.fields || []).find(f => f.id === c.cardTitle);
+    c.nameLabel = tf ? tf.label : 'Nombre';
+    if (tf) c.fields = c.fields.filter(f => f.id !== tf.id);
+    c.subtitle = c.fields.some(f => f.id === c.cardEyebrow) ? c.cardEyebrow : '';
+    delete c.cardTitle; delete c.cardEyebrow;
+    ch.c.push(c);
+    for (const it of st.items.filter(i => i.collectionId === c.id)) {
+      if (it.name !== undefined) continue;
+      it.values = it.values || {};
+      let n = tf ? it.values[tf.id] : '';
+      if (!n && c.subtitle) n = it.values[c.subtitle];
+      it.name = String(n || '').trim();
+      if (tf) delete it.values[tf.id];
+      ch.i.push(it);
+    }
+  }
+  return ch;
+}
+
 function loadLocal() {
+  let s = null;
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const s = JSON.parse(raw);
-      return { collections: s.collections || [], items: s.items || [] };
-    }
+    if (raw) { const p = JSON.parse(raw); s = { collections: p.collections || [], items: p.items || [] }; }
   } catch (e) { /* ignorar */ }
-  return migrateOld();
+  if (!s) s = migrateOld();
+  const ch = normalizeState(s);
+  if (ch.c.length || ch.i.length) { try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) { /* ignorar */ } }
+  return s;
 }
 
 function saveLocal() {
@@ -83,14 +148,14 @@ function migrateOld() {
     const old = JSON.parse(localStorage.getItem('cameras-v1') || '[]');
     if (!old.length) return { collections: [], items: [] };
     const c = makeCollection('camaras', null, 0);
+    const marca = c.fields.find(f => f.id === 'marca');
     const items = old.map(o => {
       if (o.format && !c.categories.includes(o.format)) c.categories.push(o.format);
-      if (o.brand && !c.fields[0].options.includes(o.brand)) c.fields[0].options.push(o.brand);
+      if (o.brand && !marca.options.includes(o.brand)) marca.options.push(o.brand);
       return {
-        id: o.id || uid(), collectionId: c.id, category: o.format || '',
-        status: o.status === 'deseada' ? 'deseada' : 'poseída',
-        photos: o.photo ? [o.photo] : [],
-        values: { marca: o.brand || '', modelo: o.model || '', anio: o.year || '', condicion: o.rating || 0, notas: o.notes || '' },
+        id: o.id || uid(), collectionId: c.id, name: o.model || '', category: o.format || '',
+        status: 'poseída', photos: o.photo ? [o.photo] : [],
+        values: { marca: o.brand || '', anio: o.year || '', condicion: o.rating || 0, notas: o.notes || '' },
         createdAt: Date.now(), updatedAt: Date.now()
       };
     });
@@ -138,6 +203,7 @@ async function initFirebase() {
     console.error(e);
     toast('No se pudo cargar el inicio de sesión');
     ready = true;
+    maybeAutoOpen();
     render();
   }
 }
@@ -167,13 +233,19 @@ async function maybeUploadLocal() {
 async function onAuth(u) {
   user = u;
   try {
-    if (u) { await loadCloud(); await maybeUploadLocal(); }
-    else state = loadLocal();
+    if (u) {
+      await loadCloud();
+      const ch = normalizeState(state);
+      ch.c.forEach(c => dbSet('collections', c));
+      ch.i.forEach(i => dbSet('items', i));
+      await maybeUploadLocal();
+    } else state = loadLocal();
   } catch (e) {
     console.error(e);
     toast('No se pudieron cargar tus datos');
   }
   ready = true;
+  maybeAutoOpen();
   if (view.name === 'col' && !curCol()) view = { name: 'home', id: null };
   render();
 }
@@ -188,6 +260,16 @@ async function login() {
       console.error(e);
       toast('No se pudo iniciar sesión (' + (e.code || 'error') + ')');
     }
+  }
+}
+
+// Con una sola colección, la app se abre directamente en ella
+function maybeAutoOpen() {
+  if (autoOpened || !ready) return;
+  autoOpened = true;
+  if (state.collections.length === 1) {
+    view = { name: 'col', id: state.collections[0].id };
+    filters = { category: 'Todas', q: '' };
   }
 }
 
@@ -243,38 +325,25 @@ function fmtVal(f, val) {
   return String(val);
 }
 
-function cardInfo(c, it) {
-  const v = it.values || {};
-  const fld = id => c.fields.find(f => f.id === id);
-  let eyebrow = fmtVal(fld(c.cardEyebrow), v[c.cardEyebrow]);
-  let title = fmtVal(fld(c.cardTitle), v[c.cardTitle]);
-  if (!title && eyebrow) { title = eyebrow; eyebrow = ''; }
-  const used = new Set([c.cardTitle, c.cardEyebrow]);
-  const others = c.fields
-    .filter(f => !used.has(f.id) && ['text', 'number', 'date', 'select'].includes(f.type))
-    .map(f => fmtVal(f, v[f.id])).filter(Boolean);
-  const spec = [others[0], it.category].filter(Boolean).join(' · ');
-  const rf = c.fields.find(f => f.type === 'rating');
-  const r = rf ? (+v[rf.id] || 0) : 0;
-  const stars = rf ? starsHtml(r) : '';
-  return { eyebrow, title, spec, stars };
-}
+const subtitleOf = (c, it) => {
+  const f = c.fields.find(x => x.id === c.subtitle);
+  return f ? fmtVal(f, (it.values || {})[f.id]) : '';
+};
 
 function searchText(c, it) {
   const vals = Object.values(it.values || {}).filter(x => typeof x === 'string' || typeof x === 'number');
-  return [...vals, it.category || ''].join(' ').toLowerCase();
+  return [it.name || '', ...vals, it.category || ''].join(' ').toLowerCase();
 }
 
 function cardHtml(c, it) {
-  const { eyebrow, title, spec, stars } = cardInfo(c, it);
+  const sub = subtitleOf(c, it);
   const cover = (it.photos || [])[0];
-  return `<div class="card"><div class="sprockets">${SPR}</div>
+  return `<div class="card">
     <div class="thumb" data-act="thumb" data-id="${it.id}">${cover ? `<img src="${cover}" alt="">` : logo(30)}</div>
     <div class="cardbody" data-act="openItem" data-id="${it.id}">
-      <div>${eyebrow ? `<p class="eyebrow">${esc(eyebrow)}</p>` : ''}<p class="model">${esc(title || 'Sin nombre')}</p></div>
-      <div class="specrow"><span class="spec">${esc(spec)}</span>${stars ? `<span class="spec">${stars}</span>` : ''}</div>
-    </div>
-    <div class="sprockets">${SPR}</div></div>`;
+      <p class="model">${esc(it.name || 'Sin nombre')}</p>
+      ${sub ? `<p class="sub">${esc(sub)}</p>` : ''}
+    </div></div>`;
 }
 
 /* ---------- pantallas ---------- */
@@ -294,15 +363,16 @@ function renderHome() {
   const cols = state.collections;
   $('#app').innerHTML = `<div class="page">
     <div class="topbar">
-      <div class="brandrow"><h1>Mis colecciones</h1>
+      <div class="brandrow"><h1 class="brand">Mis colecciones</h1>
         <div class="brandright"><span class="counter">${cols.length} ${cols.length === 1 ? 'colección' : 'colecciones'}</span>${accountBtn()}</div>
       </div>
     </div>
     <div class="content">
+      ${cols.length ? '' : '<p class="hint center">Crea tu primera colección con una plantilla o desde cero.</p>'}
       <div class="colgrid">
         ${cols.map(c => {
           const n = state.items.filter(i => i.collectionId === c.id).length;
-          return `<button class="colcard" data-act="openCol" data-id="${c.id}"><span class="nm">${esc(c.name)}</span><span class="ct">${n} ${n === 1 ? 'pieza' : 'piezas'}</span></button>`;
+          return `<button class="colcard" data-act="openCol" data-id="${c.id}"><span class="nmrow"><span class="nm">${esc(c.name)}</span>${cicon(c, 20)}</span><span class="ct">${n} ${n === 1 ? 'pieza' : 'piezas'}</span></button>`;
         }).join('')}
         <button class="colcard newcol" data-act="newCol">+ Nueva colección</button>
       </div>
@@ -314,7 +384,7 @@ function renderCollection() {
   $('#app').innerHTML = `<div class="page">
     <div class="topbar">
       <div class="brandrow">
-        <div class="brandleft"><button class="iconbtn" data-act="home" aria-label="Volver">${IC.back}</button><h1>${esc(c.name)}</h1></div>
+        <div class="brandleft"><button class="iconbtn" data-act="home" aria-label="Volver">${IC.back}</button><h1><span class="t">${esc(c.name)}</span>${cicon(c, 20)}</h1></div>
         <div class="brandright"><span class="counter" id="counter">000/000</span><button class="iconbtn" data-act="editCol" aria-label="Ajustes de la colección">${IC.settings}</button></div>
       </div>
       <div class="searchwrap" style="margin-top:10px;">
@@ -333,9 +403,8 @@ function renderCollection() {
 function renderDials() {
   const c = curCol();
   if (!c || !$('#catDial')) return;
-  const cd = $('#catDial');
-  cd.style.display = c.categories.length ? 'flex' : 'none';
-  cd.innerHTML = ['Todas', ...c.categories].map(x => `<button data-act="cat" data-v="${esc(x)}" class="${x === filters.category ? 'active' : ''}">${esc(x)}</button>`).join('');
+  $('#catDial').innerHTML = ['Todas', ...c.categories].map(x => `<button data-act="cat" data-v="${esc(x)}" class="${x === filters.category ? 'active' : ''}">${esc(x)}</button>`).join('')
+    + `<button class="editcats" data-act="editCats" aria-label="Editar categorías">${IC.pencil}</button>`;
 }
 
 function renderGrid() {
@@ -360,7 +429,7 @@ function renderGrid() {
 
 /* ---------- paneles ---------- */
 function openSheet(html) { $('#sheet').innerHTML = html; $('#overlay').classList.add('open'); }
-function closeSheet() { $('#overlay').classList.remove('open'); form = null; draft = null; }
+function closeSheet() { $('#overlay').classList.remove('open'); form = null; draft = null; cdraft = null; selTpl = null; }
 function closeLightbox() { $('#lightbox').classList.remove('open'); $('#lightbox').innerHTML = ''; }
 function openLightbox(photos) {
   $('#lightbox').innerHTML = photos.map(p => `<img src="${p}" alt="">`).join('');
@@ -375,7 +444,7 @@ function fieldHtml(f, val) {
     case 'date': return `<div class="field">${lab}<input type="date" data-fid="${f.id}" value="${esc(val)}"></div>`;
     case 'rating': {
       const n = +val || 0;
-      return `<div class="field">${lab}<div class="stars" data-fid="${f.id}" data-val="${n}">${[1, 2, 3, 4, 5].map(i => `<span data-act="star" data-v="${i}" class="${i <= n ? 'on' : ''}">${starSvg('', 26)}</span>`).join('')}</div></div>`;
+      return `<div class="field">${lab}<div class="stars" data-fid="${f.id}" data-val="${n}">${[1, 2, 3, 4, 5].map(i => `<span data-act="star" data-v="${i}" class="${i <= n ? 'on' : ''}">${starSvg(26)}</span>`).join('')}</div></div>`;
     }
     case 'yesno': return `<div class="field check"><label><input type="checkbox" data-fid="${f.id}" ${val ? 'checked' : ''}> ${esc(f.label)}</label></div>`;
     case 'select': {
@@ -386,7 +455,9 @@ function fieldHtml(f, val) {
     default: return `<div class="field">${lab}<input type="text" data-fid="${f.id}" value="${esc(val)}"></div>`;
   }
 }
+const starSvg = s => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="currentColor" aria-hidden="true"><polygon points="12,2.5 14.9,8.9 21.8,9.6 16.6,14.2 18.1,21 12,17.5 5.9,21 7.4,14.2 2.2,9.6 9.1,8.9"/></svg>`;
 
+/* ----- nueva / editar pieza ----- */
 function openItem(id) {
   const c = curCol();
   const it = id ? state.items.find(x => x.id === id) : null;
@@ -396,9 +467,10 @@ function openItem(id) {
   if (it && it.category && !cats.includes(it.category)) cats.push(it.category);
   openSheet(`<h2>${it ? 'Editar pieza' : 'Nueva pieza'}</h2>
     <div class="field"><label>Fotos</label><div class="photos" id="photos"></div><input type="file" id="photoInput" accept="image/*" multiple hidden></div>
+    <div class="field"><label>${esc(c.nameLabel || 'Nombre')} <span class="req">obligatorio</span></label><input type="text" id="f_name" value="${esc(it ? it.name : '')}"></div>
     <div class="field"><label>Categoría</label>
       <select id="f_cat"><option value="">Sin categoría</option>${cats.map(x => `<option value="${esc(x)}" ${it && it.category === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="__new__">+ Nueva categoría…</option></select>
-      <input type="text" class="newinput" id="f_cat_new" placeholder="Nombre de la categoría">
+      <input type="text" class="newinput" id="f_cat_new" placeholder="Nombre de la categoría (obligatorio)">
     </div>
     ${c.fields.map(f => fieldHtml(f, v[f.id])).join('')}
     <div class="sheetactions">
@@ -430,19 +502,21 @@ function readItemValues(c) {
 
 function saveItem() {
   const c = curCol();
-  const values = readItemValues(c);
+  const name = $('#f_name').value.trim();
+  if (!name) { toast('El nombre es obligatorio'); $('#f_name').focus(); return; }
   let category = $('#f_cat').value;
   if (category === '__new__') {
     category = $('#f_cat_new').value.trim();
-    if (category && !c.categories.includes(category)) { c.categories.push(category); form.collectionDirty = true; }
+    if (!category) { toast('Escribe el nombre de la nueva categoría'); $('#f_cat_new').focus(); return; }
+    if (category.toLowerCase() === 'todas') { toast('«Todas» ya existe, elige otro nombre'); return; }
+    if (!c.categories.includes(category)) { c.categories.push(category); form.collectionDirty = true; }
   }
-  const hasData = Object.values(values).some(v => v && v !== 0) || form.photos.length;
-  if (!hasData) { closeSheet(); return; }
+  const values = readItemValues(c);
   const now = Date.now();
   let it = form.id ? state.items.find(x => x.id === form.id) : null;
-  if (it) Object.assign(it, { category, status: 'poseída', photos: form.photos, values, updatedAt: now });
+  if (it) Object.assign(it, { name, category, status: 'poseída', photos: form.photos, values, updatedAt: now });
   else {
-    it = { id: uid(), collectionId: c.id, category, status: 'poseída', photos: form.photos, values, createdAt: now, updatedAt: now };
+    it = { id: uid(), collectionId: c.id, name, category, status: 'poseída', photos: form.photos, values, createdAt: now, updatedAt: now };
     state.items.push(it);
   }
   const dirty = form.collectionDirty;
@@ -455,34 +529,44 @@ function saveItem() {
 }
 
 function delItem() {
-  const c = curCol();
   const it = state.items.find(x => x.id === form.id);
   if (!it) return;
-  const t = cardInfo(c, it);
-  const titulo = [t.eyebrow, t.title].filter(Boolean).join(' ') || 'esta pieza';
-  if (!confirm(`¿Seguro que quieres eliminar "${titulo}"?`)) return;
+  if (!confirm(`¿Seguro que quieres eliminar "${it.name || 'esta pieza'}"?`)) return;
   state.items = state.items.filter(x => x.id !== it.id);
   closeSheet();
   dbDel('items', it.id);
   renderGrid();
 }
 
+/* ----- nueva colección ----- */
 function openNewCol() {
+  selTpl = null;
   openSheet(`<h2>Nueva colección</h2>
-    <div class="field"><label>Nombre (opcional)</label><input type="text" id="n_name" placeholder="Si lo dejas vacío usamos el de la plantilla" style="display:block;"></div>
-    <p class="hint">Elige una plantilla o empieza desde cero. Después puedes cambiar campos y categorías.</p>
+    <p class="hint">1. Elige una plantilla o empieza desde cero. Después podrás cambiar sus categorías y datos.</p>
     <div class="tpls">${Object.entries(TEMPLATES).map(([k, t]) => `<button class="tpl" data-act="pickTpl" data-k="${k}">${esc(t.name)}</button>`).join('')}</div>
-    <div class="sheetactions"><button class="btn ghost" data-act="closeSheet">Cancelar</button></div>`);
+    <div class="field"><label>2. Nombre de la colección</label><input type="text" id="n_name" placeholder="Elige una plantilla…"></div>
+    <div class="sheetactions rowfix">
+      <button class="btn primary" data-act="createCol">Crear colección</button>
+      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
+    </div>`);
 }
 
 function pickTpl(k) {
+  selTpl = k;
+  document.querySelectorAll('.tpl').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  const n = $('#n_name');
+  n.placeholder = k === 'personalizada' ? 'Ponle un nombre a tu colección' : TEMPLATES[k].name;
+}
+
+function createCol() {
+  if (!selTpl) { toast('Elige una plantilla para empezar'); return; }
   const name = $('#n_name').value.trim();
-  const c = makeCollection(k, name || null, state.collections.length);
+  if (selTpl === 'personalizada' && !name) { toast('Ponle un nombre a tu colección'); $('#n_name').focus(); return; }
+  const c = makeCollection(selTpl, name || null, state.collections.length);
   state.collections.push(c);
   closeSheet();
   dbSet('collections', c);
   openCol(c.id);
-  if (k === 'personalizada') openEditCol();
 }
 
 function openCol(id) {
@@ -498,51 +582,72 @@ function goHome() {
   render();
 }
 
-/* ---------- editar colección ---------- */
+/* ----- ajustes de la colección (nombre, datos de cada pieza, subtítulo) ----- */
 function openEditCol() {
   const c = curCol();
-  draft = {
-    name: c.name, icon: c.icon,
-    cats: c.categories.map(n => ({ orig: n, name: n })),
-    fields: clone(c.fields),
-    cardTitle: c.cardTitle || '', cardEyebrow: c.cardEyebrow || ''
-  };
+  draft = { name: c.name, fields: clone(c.fields), subtitle: c.subtitle || '', newFieldLabel: '', newFieldType: 'text' };
   renderEditCol();
 }
 
 function syncDraft() {
   if (!draft) return;
   const n = $('#c_name'); if (n) draft.name = n.value;
-  document.querySelectorAll('[data-cat]').forEach(el => { draft.cats[+el.dataset.cat].name = el.value; });
   document.querySelectorAll('[data-flabel]').forEach(el => { draft.fields[+el.dataset.flabel].label = el.value; });
   document.querySelectorAll('[data-fopts]').forEach(el => {
     draft.fields[+el.dataset.fopts].options = el.value.split(',').map(s => s.trim()).filter(Boolean);
   });
-  const t = $('#c_title'); if (t) draft.cardTitle = t.value;
-  const e = $('#c_eyebrow'); if (e) draft.cardEyebrow = e.value;
+  const s = $('#c_sub'); if (s) draft.subtitle = s.value;
+  const nl = $('#newFieldLabel'); if (nl) draft.newFieldLabel = nl.value;
+  const nt = $('#newFieldType'); if (nt) draft.newFieldType = nt.value;
+}
+
+function fieldRowHtml(f, i) {
+  const locked = f.type === 'rating';
+  return `<div class="fieldedit">
+    <div class="rowedit">${locked
+      ? `<span class="lockname">${IC.lock}${esc(f.label)}</span>`
+      : `<input type="text" data-flabel="${i}" value="${esc(f.label)}" placeholder="Nombre del campo">`}
+      <button data-act="fieldUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="fieldDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="fieldDel" data-i="${i}" aria-label="Quitar">${IC.x}</button></div>
+    <div class="rowedit meta"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span>${f.type === 'select' ? `<input type="text" data-fopts="${i}" placeholder="Madera, Tela, Papel…" value="${esc((f.options || []).join(', '))}">` : ''}</div>
+    <p class="help">${f.type === 'select' ? 'Escribe el nombre de cada opción separado por comas. Así las tendrás en la lista al añadir o editar una pieza.' : esc(FIELD_HELP[f.type] || '')}</p>
+  </div>`;
 }
 
 function renderEditCol() {
-  const textual = draft.fields.filter(f => ['text', 'select', 'number'].includes(f.type));
-  const optsFor = sel => textual.map(f => `<option value="${f.id}" ${sel === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('');
+  const c = curCol();
+  const subOpts = draft.fields.filter(f => ['text', 'select', 'number', 'date'].includes(f.type));
+  const used = new Set(draft.fields.map(f => f.id));
+  const extras = EXTRAS.filter(e => !used.has(e.id));
   const top = $('#sheet').scrollTop;
-  openSheet(`<h2>Editar colección</h2>
-    <div class="field"><label>Nombre</label><input type="text" id="c_name" value="${esc(draft.name)}" style="display:block;"></div>
-    <div class="field"><label>Categorías</label>
-      ${draft.cats.map((r, i) => `<div class="rowedit"><input type="text" data-cat="${i}" value="${esc(r.name)}"><button data-act="catUp" data-i="${i}">${IC.up}</button><button data-act="catDown" data-i="${i}">${IC.down}</button><button data-act="catDel" data-i="${i}">${IC.x}</button></div>`).join('')}
-      <div class="rowedit"><input type="text" id="newCat" placeholder="Nueva categoría"><button data-act="catAdd">+</button></div>
+  openSheet(`<h2>Ajustes de la colección</h2>
+    <div class="sect">
+      <h3>Nombre de la colección</h3>
+      <div class="field"><input type="text" id="c_name" value="${esc(draft.name)}"></div>
     </div>
-    <div class="field"><label>Campos</label>
-      ${draft.fields.map((f, i) => `<div class="fieldedit"><div class="rowedit"><input type="text" data-flabel="${i}" value="${esc(f.label)}"><button data-act="fieldUp" data-i="${i}">${IC.up}</button><button data-act="fieldDown" data-i="${i}">${IC.down}</button><button data-act="fieldDel" data-i="${i}">${IC.x}</button></div>
-        <div class="rowedit"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span>${f.type === 'select' ? `<input type="text" data-fopts="${i}" placeholder="Opciones separadas por comas" value="${esc((f.options || []).join(', '))}">` : ''}</div></div>`).join('')}
-      <div class="rowedit"><input type="text" id="newFieldLabel" placeholder="Nuevo campo"><select id="newFieldType">${Object.entries(FIELD_TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><button data-act="fieldAdd">+</button></div>
+    <div class="sect">
+      <div class="secthead"><h3>Datos de cada pieza</h3><button class="infobtn" data-act="info" data-k="fields" aria-label="Más información">i</button></div>
+      <p class="hint">Lo que guardas de cada pieza. El nombre es obligatorio y siempre está; lo demás lo decides tú.</p>
+      <div class="lockedrow"><span>${IC.lock}${esc(c.nameLabel || 'Nombre')}</span><span class="tag">Obligatorio</span></div>
+      ${draft.fields.map(fieldRowHtml).join('')}
+      <p class="subhead">Extras que puedes añadir</p>
+      <div class="chips">${extras.length ? extras.map(e => `<button class="chip" data-act="addExtra" data-id="${e.id}">+ ${esc(e.label)}</button>`).join('') : '<span class="hint">Ya tienes todos los extras.</span>'}</div>
+      <p class="subhead">O crea un campo propio</p>
+      <p class="hint">Escribe el nombre, elige el tipo y pulsa el botón <b>+</b> para añadirlo.</p>
+      <div class="rowedit">
+        <input type="text" id="newFieldLabel" data-addinput="fieldAdd" placeholder="Nombre del campo" value="${esc(draft.newFieldLabel)}">
+        <select id="newFieldType">${Object.entries(FIELD_TYPES).map(([k, l]) => `<option value="${k}" ${draft.newFieldType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <button class="addbtn${draft.newFieldLabel.trim() ? ' ready' : ''}" data-act="fieldAdd" aria-label="Añadir campo">${IC.plus}</button>
+      </div>
     </div>
-    <div class="field"><label>Título de la tarjeta</label><select id="c_title">${optsFor(draft.cardTitle)}</select></div>
-    <div class="field"><label>Texto sobre el título</label><select id="c_eyebrow"><option value="">Ninguno</option>${optsFor(draft.cardEyebrow)}</select></div>
-    <div class="sheetactions">
-      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
-      <button class="btn danger" data-act="delCol">Eliminar</button>
+    <div class="sect">
+      <h3>Subtítulo de la tarjeta</h3>
+      <p class="hint">Un dato que aparece bajo el nombre en cada tarjeta. En la tarjeta solo hay nombre y subtítulo.</p>
+      <select id="c_sub"><option value="">Ninguno</option>${subOpts.map(f => `<option value="${f.id}" ${draft.subtitle === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select>
+    </div>
+    <div class="sheetactions rowfix">
       <button class="btn primary" data-act="saveCol">Guardar</button>
+      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
+      <button class="btn text" data-act="delCol">Eliminar colección</button>
     </div>`);
   $('#sheet').scrollTop = top;
 }
@@ -556,30 +661,19 @@ function move(arr, i, d) {
 function saveCol() {
   syncDraft();
   const c = curCol();
-  const rename = {};
-  draft.cats.forEach(r => { if (r.orig && r.orig !== r.name.trim()) rename[r.orig] = r.name.trim(); });
-  const keep = new Set(draft.cats.filter(r => r.orig).map(r => r.orig));
-  const removed = c.categories.filter(o => !keep.has(o));
-  const newCats = [];
-  draft.cats.forEach(r => { const n = r.name.trim(); if (n && !newCats.includes(n)) newCats.push(n); });
-  const fieldIds = new Set(draft.fields.map(f => f.id));
+  if (draft.newFieldLabel.trim()) { toast(`Falta pulsar + para añadir «${draft.newFieldLabel.trim()}»`); return; }
+  if (!draft.name.trim()) { toast('La colección necesita un nombre'); return; }
+  if (draft.fields.some(f => !f.label.trim())) { toast('Todos los campos necesitan un nombre'); return; }
+  const ids = new Set(draft.fields.map(f => f.id));
   const changed = [];
   state.items.filter(i => i.collectionId === c.id).forEach(it => {
     let ch = false;
-    if (it.category) {
-      if (it.category in rename) { it.category = rename[it.category]; ch = true; }
-      else if (removed.includes(it.category)) { it.category = ''; ch = true; }
-    }
-    Object.keys(it.values || {}).forEach(k => { if (!fieldIds.has(k)) { delete it.values[k]; ch = true; } });
+    Object.keys(it.values || {}).forEach(k => { if (!ids.has(k)) { delete it.values[k]; ch = true; } });
     if (ch) changed.push(it);
   });
-  c.name = draft.name.trim() || c.name;
-  c.categories = newCats;
-  c.fields = draft.fields.filter(f => f.label.trim()).map(f => ({ ...f, label: f.label.trim() }));
-  const ok = id => c.fields.some(f => f.id === id);
-  c.cardTitle = ok(draft.cardTitle) ? draft.cardTitle : (c.fields[0] ? c.fields[0].id : '');
-  c.cardEyebrow = ok(draft.cardEyebrow) && draft.cardEyebrow !== c.cardTitle ? draft.cardEyebrow : '';
-  filters.category = 'Todas';
+  c.name = draft.name.trim();
+  c.fields = draft.fields.map(f => ({ ...f, label: f.label.trim() }));
+  c.subtitle = ids.has(draft.subtitle) ? draft.subtitle : '';
   closeSheet();
   dbSet('collections', c);
   changed.forEach(i => dbSet('items', i));
@@ -598,20 +692,84 @@ function delCol() {
   goHome();
 }
 
+/* ----- categorías (lápiz al final de la fila) ----- */
+function openEditCats() {
+  const c = curCol();
+  cdraft = { rows: c.categories.map(n => ({ orig: n, name: n })), newCat: '' };
+  renderEditCats();
+}
+
+function syncCats() {
+  if (!cdraft) return;
+  document.querySelectorAll('[data-cat]').forEach(el => { cdraft.rows[+el.dataset.cat].name = el.value; });
+  const n = $('#newCat'); if (n) cdraft.newCat = n.value;
+}
+
+function renderEditCats() {
+  const top = $('#sheet').scrollTop;
+  openSheet(`<div class="secthead"><h2>Categorías</h2><button class="infobtn" data-act="info" data-k="cats" aria-label="Más información">i</button></div>
+    <p class="hint">Sirven para agrupar y filtrar tus piezas. Puedes cambiar el nombre de todas, reordenarlas o borrarlas.</p>
+    <div class="lockedrow"><span>${IC.lock}Todas</span><span class="tag">Siempre está</span></div>
+    ${cdraft.rows.map((r, i) => `<div class="rowedit"><input type="text" data-cat="${i}" value="${esc(r.name)}" placeholder="Nombre de la categoría"><button data-act="catUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="catDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="catDel" data-i="${i}" aria-label="Borrar">${IC.x}</button></div>`).join('')}
+    <p class="subhead">Añadir una categoría</p>
+    <p class="hint">Escribe el nombre (es obligatorio) y pulsa el botón <b>+</b> para añadirla.</p>
+    <div class="rowedit">
+      <input type="text" id="newCat" data-addinput="catAdd" placeholder="Nombre de la nueva categoría" value="${esc(cdraft.newCat)}">
+      <button class="addbtn${cdraft.newCat.trim() ? ' ready' : ''}" data-act="catAdd" aria-label="Añadir categoría">${IC.plus}</button>
+    </div>
+    <div class="sheetactions rowfix">
+      <button class="btn primary" data-act="saveCats">Guardar</button>
+      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
+    </div>`);
+  $('#sheet').scrollTop = top;
+}
+
+function saveCats() {
+  syncCats();
+  const c = curCol();
+  if (cdraft.newCat.trim()) { toast(`Falta pulsar + para añadir «${cdraft.newCat.trim()}»`); return; }
+  if (cdraft.rows.some(r => !r.name.trim())) { toast('Todas las categorías necesitan un nombre'); return; }
+  if (cdraft.rows.some(r => r.name.trim().toLowerCase() === 'todas')) { toast('«Todas» ya existe, elige otro nombre'); return; }
+  const rename = {};
+  cdraft.rows.forEach(r => { if (r.orig && r.orig !== r.name.trim()) rename[r.orig] = r.name.trim(); });
+  const keep = new Set(cdraft.rows.filter(r => r.orig).map(r => r.orig));
+  const removed = c.categories.filter(o => !keep.has(o));
+  const newCats = [];
+  cdraft.rows.forEach(r => { const n = r.name.trim(); if (!newCats.includes(n)) newCats.push(n); });
+  const changed = [];
+  state.items.filter(i => i.collectionId === c.id).forEach(it => {
+    if (!it.category) return;
+    if (it.category in rename) { it.category = rename[it.category]; changed.push(it); }
+    else if (removed.includes(it.category)) { it.category = ''; changed.push(it); }
+  });
+  c.categories = newCats;
+  filters.category = 'Todas';
+  closeSheet();
+  dbSet('collections', c);
+  changed.forEach(i => dbSet('items', i));
+  renderDials();
+  renderGrid();
+}
+
 /* ---------- eventos ---------- */
 const A = {
   home: () => goHome(),
   openCol: el => openCol(el.dataset.id),
   newCol: () => openNewCol(),
   pickTpl: el => pickTpl(el.dataset.k),
+  createCol: () => createCol(),
   editCol: () => openEditCol(),
   saveCol: () => saveCol(),
   delCol: () => delCol(),
+  editCats: () => openEditCats(),
+  saveCats: () => saveCats(),
   newItem: () => openItem(null),
   openItem: el => openItem(el.dataset.id),
   saveItem: () => saveItem(),
   delItem: () => delItem(),
   closeSheet: () => closeSheet(),
+  info: el => showInfo(el.dataset.k),
+  closeInfo: () => closeInfo(),
   thumb: el => {
     const it = state.items.find(x => x.id === el.dataset.id);
     if (it && it.photos && it.photos.length) openLightbox(it.photos); else openItem(el.dataset.id);
@@ -623,11 +781,11 @@ const A = {
     $('#clearSearch').style.display = 'none';
     renderGrid();
   },
-  login: () => login(),
   account: () => {
     if (user) openSheet(`<h2>Tu cuenta</h2><p class="hint">${esc(user.displayName || '')}${user.displayName && user.email ? '<br>' : ''}${esc(user.email || '')}</p><div class="sheetactions"><button class="btn ghost" data-act="closeSheet">Cerrar</button><button class="btn danger" data-act="logout">Cerrar sesión</button></div>`);
     else login();
   },
+  login: () => login(),
   logout: () => { closeSheet(); if (fb) fb.signOut(auth); },
   addPhoto: () => $('#photoInput').click(),
   rmPhoto: el => { form.photos.splice(+el.dataset.i, 1); renderPhotos(); },
@@ -639,23 +797,31 @@ const A = {
     st.querySelectorAll('span').forEach(s => s.classList.toggle('on', +s.dataset.v <= n));
   },
   catAdd: () => {
-    syncDraft();
-    const v = $('#newCat').value.trim();
-    if (v) draft.cats.push({ orig: null, name: v });
-    renderEditCol();
+    syncCats();
+    const v = cdraft.newCat.trim();
+    if (!v) { toast('Escribe el nombre de la categoría antes de pulsar +'); $('#newCat').focus(); return; }
+    if (v.toLowerCase() === 'todas' || cdraft.rows.some(r => r.name.trim().toLowerCase() === v.toLowerCase())) { toast('Esa categoría ya existe'); return; }
+    cdraft.rows.push({ orig: null, name: v });
+    cdraft.newCat = '';
+    renderEditCats();
   },
-  catUp: el => { syncDraft(); move(draft.cats, +el.dataset.i, -1); renderEditCol(); },
-  catDown: el => { syncDraft(); move(draft.cats, +el.dataset.i, 1); renderEditCol(); },
-  catDel: el => { syncDraft(); draft.cats.splice(+el.dataset.i, 1); renderEditCol(); },
+  catUp: el => { syncCats(); move(cdraft.rows, +el.dataset.i, -1); renderEditCats(); },
+  catDown: el => { syncCats(); move(cdraft.rows, +el.dataset.i, 1); renderEditCats(); },
+  catDel: el => { syncCats(); cdraft.rows.splice(+el.dataset.i, 1); renderEditCats(); },
   fieldAdd: () => {
     syncDraft();
-    const label = $('#newFieldLabel').value.trim();
-    const type = $('#newFieldType').value;
-    if (label) {
-      const f = { id: 'f' + uid(), label, type };
-      if (type === 'select') f.options = [];
-      draft.fields.push(f);
-    }
+    const label = draft.newFieldLabel.trim();
+    if (!label) { toast('Escribe el nombre del campo antes de pulsar +'); $('#newFieldLabel').focus(); return; }
+    const f = { id: 'f' + uid(), label, type: draft.newFieldType };
+    if (f.type === 'select') f.options = [];
+    draft.fields.push(f);
+    draft.newFieldLabel = '';
+    renderEditCol();
+  },
+  addExtra: el => {
+    syncDraft();
+    const e = EXTRAS.find(x => x.id === el.dataset.id);
+    if (e && !draft.fields.some(f => f.id === e.id)) draft.fields.push(clone(e));
     renderEditCol();
   },
   fieldUp: el => { syncDraft(); move(draft.fields, +el.dataset.i, -1); renderEditCol(); },
@@ -665,13 +831,13 @@ const A = {
     const f = draft.fields[+el.dataset.i];
     if (!confirm(`¿Quitar el campo "${f.label}"? Se perderán sus datos en todas las piezas al guardar.`)) return;
     draft.fields.splice(+el.dataset.i, 1);
-    if (draft.cardTitle === f.id) draft.cardTitle = draft.fields[0] ? draft.fields[0].id : '';
-    if (draft.cardEyebrow === f.id) draft.cardEyebrow = '';
+    if (draft.subtitle === f.id) draft.subtitle = '';
     renderEditCol();
   }
 };
 
 document.addEventListener('click', e => {
+  if (e.target.classList && e.target.classList.contains('modalbg')) { closeInfo(); return; }
   if (e.target.id === 'overlay') { closeSheet(); return; }
   if (e.target.closest('#lightbox')) { closeLightbox(); return; }
   const el = e.target.closest('[data-act]');
@@ -694,15 +860,29 @@ document.addEventListener('change', async e => {
 });
 
 document.addEventListener('input', e => {
-  if (e.target.id === 'search') {
-    filters.q = e.target.value;
-    $('#clearSearch').style.display = e.target.value ? 'flex' : 'none';
+  const t = e.target;
+  if (t.id === 'search') {
+    filters.q = t.value;
+    $('#clearSearch').style.display = t.value ? 'flex' : 'none';
     renderGrid();
+  }
+  if (t.dataset && t.dataset.addinput) {
+    const b = document.querySelector(`[data-act="${t.dataset.addinput}"]`);
+    if (b) b.classList.toggle('ready', !!t.value.trim());
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.addinput) {
+    e.preventDefault();
+    const b = document.querySelector(`[data-act="${e.target.dataset.addinput}"]`);
+    if (b) b.click();
   }
 });
 
 window.addEventListener('popstate', () => {
   const restore = () => { if (view.name === 'col') history.pushState({ col: true }, ''); };
+  if (document.querySelector('.modalbg')) { closeInfo(); restore(); return; }
   if ($('#lightbox').classList.contains('open')) { closeLightbox(); restore(); return; }
   if ($('#overlay').classList.contains('open')) { closeSheet(); restore(); return; }
   if (view.name === 'col') { view = { name: 'home', id: null }; render(); }
@@ -710,7 +890,8 @@ window.addEventListener('popstate', () => {
 
 /* ---------- arranque ---------- */
 state = loadLocal();
+maybeAutoOpen();
 render();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 initFirebase();
-setTimeout(() => { if (!ready) { ready = true; render(); } }, 8000);
+setTimeout(() => { if (!ready) { ready = true; maybeAutoOpen(); render(); } }, 8000);
