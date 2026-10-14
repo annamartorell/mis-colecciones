@@ -38,7 +38,13 @@ const IC = {
   down: svg('<path d="M6 10l6 6 6-6"/>', 16),
   pencil: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', 16),
   lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 13),
-  check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 22)
+  check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 22),
+  chev: svg('<path d="M9 5l7 7-7 7"/>', 18),
+  search: svg('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', 19),
+  list: svg('<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>', 16),
+  tag: svg('<path d="M3.5 12V4.5H11l9 9-7.5 7.5z"/><circle cx="7.8" cy="8.8" r="1"/>', 17),
+  text: svg('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>', 16),
+  plusS: svg('<path d="M12 5v14M5 12h14"/>', 20)
 };
 const ICON_PATHS = {
   spark: '<path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/>',
@@ -64,9 +70,11 @@ const ICON_PATHS = {
   bottle: '<path d="M10 3h4v4l1.5 3.5V20a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V10.5L10 7z"/>'
 };
 const ICON_MAP = { '📷': 'camera', '🌸': 'fan', '🪙': 'coin', '✉️': 'stamp', '📚': 'book', '💿': 'vinyl', '✨': 'spark' };
+const b3d = (inner, s = 40) => `<span class="b3d" style="--s:${s}px">${inner}</span>`;
+const sh = (icon, title, extra = '') => `<div class="secthead"><div class="st">${b3d(icon, 30)}<h3>${title}</h3></div>${extra}</div>`;
 const iconSvg = (k, s = 20, sw = 1.6, cls = 'cicon') => `<svg class="${cls}" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[k] || ICON_PATHS.spark}</svg>`;
 const iconKey = c => ICON_PATHS[c.icon] ? c.icon : (ICON_MAP[c.icon] || 'spark');
-const cicon = (c, s = 20) => iconSvg(iconKey(c), s);
+const cicon = (c, s = 40) => b3d(iconSvg(iconKey(c), Math.round(s * 0.52), 1.9, 'g'), s);
 const logo = (s, stroke = '#b4c3dc') => `<svg class="reel-icon" viewBox="0 0 64 64" width="${s}" height="${s}" fill="none" stroke="${stroke}" stroke-width="2.4" aria-hidden="true"><rect x="8" y="8" width="24" height="48" rx="5"/><rect x="36" y="8" width="20" height="22" rx="5"/><rect x="36" y="34" width="20" height="22" rx="5"/></svg>`;
 
 function toast(msg) {
@@ -382,14 +390,11 @@ function renderHome() {
       </div>
     </div>
     <div class="content">
-      ${cols.length ? '' : '<p class="hint center">Crea tu primera colección con una plantilla o desde cero.</p>'}
-      <div class="colgrid">
-        ${cols.map(c => {
-          const n = state.items.filter(i => i.collectionId === c.id).length;
-          return `<button class="colcard" data-act="openCol" data-id="${c.id}"><span class="nmrow"><span class="nm">${esc(c.name)}</span>${cicon(c, 20)}</span><span class="ct">${n} ${n === 1 ? 'pieza' : 'piezas'}</span></button>`;
-        }).join('')}
-        <button class="colcard newcol" data-act="newCol">+ Nueva colección</button>
-      </div>
+      ${cols.length ? `<div class="group">${cols.map(c => {
+        const n = state.items.filter(i => i.collectionId === c.id).length;
+        return `<button class="row" data-act="openCol" data-id="${c.id}"><span class="rowtxt"><span class="rowtitle">${esc(c.name)}</span><span class="rowsub">${n} ${n === 1 ? 'pieza' : 'piezas'}</span></span>${cicon(c, 42)}<span class="chev">${IC.chev}</span></button>`;
+      }).join('')}</div>` : '<p class="hint center">Crea tu primera colección con una plantilla o desde cero.</p>'}
+      <button class="addrow" data-act="newCol">${IC.plusS} Nueva colección</button>
     </div></div>`;
 }
 
@@ -398,11 +403,11 @@ function renderCollection() {
   $('#app').innerHTML = `<div class="page">
     <div class="topbar">
       <div class="brandrow">
-        <div class="brandleft"><button class="iconbtn" data-act="home" aria-label="Volver">${IC.back}</button><h1><span class="t">${esc(c.name)}</span>${cicon(c, 20)}</h1></div>
+        <div class="brandleft"><button class="iconbtn" data-act="home" aria-label="Volver">${IC.back}</button><h1><span class="t">${esc(c.name)}</span>${cicon(c, 32)}</h1></div>
         <div class="brandright"><span class="counter" id="counter">000/000</span><button class="iconbtn" data-act="editCol" aria-label="Ajustes de la colección">${IC.settings}</button></div>
       </div>
       <div class="searchwrap" style="margin-top:10px;">
-        <input class="search" id="search" placeholder="Buscar…" value="${esc(filters.q)}">
+        <span class="sicon">${IC.search}</span><input class="search" id="search" placeholder="Buscar…" value="${esc(filters.q)}">
         <button class="clearsearch" id="clearSearch" data-act="clearSearch" style="${filters.q ? 'display:flex;' : ''}" aria-label="Borrar búsqueda">${IC.x}</button>
       </div>
       <div class="dial" id="catDial"></div>
@@ -433,7 +438,7 @@ function renderGrid() {
   const empty = $('#empty');
   if (!all.length) {
     empty.className = 'empty show';
-    empty.innerHTML = `${logo(46, '#4a7fc1')}<h3>Aún no hay piezas</h3><p>Añade la primera pieza de esta colección.</p><button data-act="newItem">Añadir pieza</button>`;
+    empty.innerHTML = `${b3d(logo(32, '#fff'), 72)}<h3>Aún no hay piezas</h3><p>Añade la primera pieza de esta colección.</p><button data-act="newItem">Añadir pieza</button>`;
   } else if (!list.length) {
     empty.className = 'empty show';
     empty.innerHTML = '<h3>Nada por aquí</h3><p>No hay piezas con estos filtros.</p>';
@@ -634,15 +639,15 @@ function renderEditCol() {
   const top = $('#sheet').scrollTop;
   openSheet(`<h2>Ajustes de la colección</h2>
     <div class="sect">
-      <h3>Nombre de la colección</h3>
+      ${sh(IC.pencil, 'Nombre de la colección')}
       <div class="field"><input type="text" id="c_name" value="${esc(draft.name)}"></div>
     </div>
     <div class="sect">
-      <h3>Icono</h3>
-      <div class="icongrid">${Object.keys(ICON_PATHS).map(k => `<button class="iconopt${k === draft.icon ? ' on' : ''}" data-act="pickIcon" data-v="${k}" aria-label="Icono ${k}">${iconSvg(k, 22, 1.6, 'pk')}</button>`).join('')}</div>
+      ${sh(iconSvg('spark', 16, 1.8, 'g'), 'Icono')}
+      <div class="icongrid">${Object.keys(ICON_PATHS).map(k => `<button class="iconopt${k === draft.icon ? ' on' : ''}" data-act="pickIcon" data-v="${k}" aria-label="Icono ${k}">${b3d(iconSvg(k, 21, 1.9, 'g'), 42)}</button>`).join('')}</div>
     </div>
     <div class="sect">
-      <div class="secthead"><h3>Datos de cada pieza</h3><button class="infobtn" data-act="info" data-k="fields" aria-label="Más información">i</button></div>
+      ${sh(IC.list, 'Datos de cada pieza', '<button class="infobtn" data-act="info" data-k="fields" aria-label="Más información">i</button>')}
       <p class="hint">Lo que guardas de cada pieza. El nombre es obligatorio y siempre está; lo demás lo decides tú.</p>
       <div class="lockedrow"><span>${IC.lock}${esc(c.nameLabel || 'Nombre')}</span><span class="tag">Obligatorio</span></div>
       ${draft.fields.map(fieldRowHtml).join('')}
@@ -657,7 +662,7 @@ function renderEditCol() {
       </div>
     </div>
     <div class="sect">
-      <h3>Subtítulo de la tarjeta</h3>
+      ${sh(IC.text, 'Subtítulo de la tarjeta')}
       <p class="hint">Un dato que aparece bajo el nombre en cada tarjeta. En la tarjeta solo hay nombre y subtítulo.</p>
       <div class="optchips">${[{ id: '', label: 'Ninguno' }, ...subOpts].map(o => `<button class="optchip${draft.subtitle === o.id ? ' on' : ''}" data-act="setSub" data-v="${o.id}">${esc(o.label)}</button>`).join('')}</div>
     </div>
@@ -725,7 +730,7 @@ function syncCats() {
 
 function renderEditCats() {
   const top = $('#sheet').scrollTop;
-  openSheet(`<div class="secthead"><h2>Categorías</h2><button class="infobtn" data-act="info" data-k="cats" aria-label="Más información">i</button></div>
+  openSheet(`<div class="secthead"><div class="st">${b3d(IC.tag, 34)}<h2>Categorías</h2></div><button class="infobtn" data-act="info" data-k="cats" aria-label="Más información">i</button></div>
     <p class="hint">Sirven para agrupar y filtrar tus piezas. Puedes cambiar el nombre de todas, reordenarlas o borrarlas.</p>
     <div class="lockedrow"><span>${IC.lock}Todas</span></div>
     ${cdraft.rows.map((r, i) => `<div class="rowedit"><input type="text" data-cat="${i}" value="${esc(r.name)}" placeholder="Nombre de la categoría"><button data-act="catUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="catDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="catDel" data-i="${i}" aria-label="Borrar">${IC.x}</button></div>`).join('')}
