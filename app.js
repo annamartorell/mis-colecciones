@@ -17,12 +17,18 @@ let state = { collections: [], items: [] };
 let user = null, fb = null, db = null, auth = null;
 let ready = !CLOUD;
 let view = { name: 'home', id: null };
-let filters = { category: 'Todas', q: '' };
+function newFilters() { return { category: 'Todas', q: '', vals: {} }; }
+let filters = newFilters();
 let form = null;
 let draft = null;
 let cdraft = null;
 let selTpl = null;
 let autoOpened = false;
+let picker = null;
+let profileOpen = false;
+let lastBack = 0;
+const DEFAULT_THEME = '#5b94e6';
+let settings = { theme: DEFAULT_THEME, avatar: '' };
 
 const curCol = () => state.collections.find(c => c.id === view.id);
 
@@ -45,6 +51,9 @@ const IC = {
   tag: svg('<path d="M3.5 12V4.5H11l9 9-7.5 7.5z"/><circle cx="7.8" cy="8.8" r="1"/>', 17),
   text: svg('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>', 16),
   plusS: svg('<path d="M12 5v14M5 12h14"/>', 20),
+  chevD: svg('<path d="M6 9l6 6 6-6"/>', 14),
+  userL: svg('<circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-3.6 3.9-5.5 7.5-5.5s6.7 1.9 7.5 5.5"/>', 34),
+  spark: svg('<path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/>', 17),
   pencilL: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', 24)
 };
 const ICON_PATHS = {
@@ -78,6 +87,129 @@ const iconKey = c => ICON_PATHS[c.icon] ? c.icon : (ICON_MAP[c.icon] || 'spark')
 const cicon = (c, s = 40) => b3d(iconSvg(iconKey(c), Math.round(s * 0.52), 1.9, 'g'), s);
 const logo = (s, stroke = '#b4c3dc') => `<svg class="reel-icon" viewBox="0 0 64 64" width="${s}" height="${s}" fill="none" stroke="${stroke}" stroke-width="2.4" aria-hidden="true"><rect x="8" y="8" width="24" height="48" rx="5"/><rect x="36" y="8" width="20" height="22" rx="5"/><rect x="36" y="34" width="20" height="22" rx="5"/></svg>`;
 
+
+const toArr = v => Array.isArray(v) ? v : (v === undefined || v === null || v === '' ? [] : [v]);
+
+/* ---------- tema de colores ---------- */
+const THEMES = [
+  { id: 'azul', name: 'Azul', hex: '#5b94e6' },
+  { id: 'turquesa', name: 'Turquesa', hex: '#3fb8c4' },
+  { id: 'verde', name: 'Verde', hex: '#4cb87f' },
+  { id: 'ambar', name: 'Ámbar', hex: '#e0a63a' },
+  { id: 'naranja', name: 'Naranja', hex: '#ee7b45' },
+  { id: 'granate', name: 'Granate', hex: '#d9566e' },
+  { id: 'rosa', name: 'Rosa', hex: '#d868a8' },
+  { id: 'violeta', name: 'Violeta', hex: '#9b7ee8' },
+  { id: 'grafito', name: 'Grafito', hex: '#9aa5b8' }
+];
+function hexToHsl(hex) {
+  let h = String(hex || DEFAULT_THEME).replace('#', '');
+  if (h.length === 3) h = h.split('').map(x => x + x).join('');
+  const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, l = (max + min) / 2;
+  let hh = 0, ss = 0;
+  if (d) {
+    ss = d / (1 - Math.abs(2 * l - 1));
+    if (max === r) hh = ((g - b) / d) % 6; else if (max === g) hh = (b - r) / d + 2; else hh = (r - g) / d + 4;
+    hh *= 60; if (hh < 0) hh += 360;
+  }
+  return { h: hh, s: ss * 100, l: l * 100 };
+}
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))];
+}
+const hsl = (h, s, l) => `hsl(${Math.round(h)} ${Math.round(s)}% ${Math.round(l)}%)`;
+function themeVars(hex) {
+  const { h, s } = hexToHsl(hex);
+  const sat = Math.max(10, Math.min(s, 85));
+  const ss = Math.max(8, Math.min(40, sat * 0.5));
+  return {
+    '--bg': hsl(h, ss * 0.9, 5), '--bg-rgb': hslToRgb(h, ss * 0.9, 5).join(','),
+    '--surface': hsl(h, ss, 9), '--surface-2': hsl(h, ss, 13), '--surface-3': hsl(h, ss, 17),
+    '--line': hsl(h, ss, 23), '--star-off': hsl(h, ss, 28),
+    '--primary': hsl(h, sat, 63), '--primary-strong': hsl(h, sat, 52),
+    '--primary-cont': hsl(h, Math.min(sat, 55), 22), '--on-cont': hsl(h, Math.min(sat + 10, 90), 88),
+    '--sel': hsl(h, Math.min(sat, 60), 27),
+    '--g1': hsl(h, sat, 76), '--g2': hsl(h, sat, 58), '--g3': hsl(h, sat, 38),
+    '--glow': hslToRgb(h, sat * 0.8, 18).join(','), '--glow-d': hslToRgb(h, sat * 0.9, 14).join(','), '--glow-p': hslToRgb(h, sat, 45).join(','),
+    '--text': hsl(h, Math.min(ss, 30), 94), '--text-dim': hsl(h, Math.min(ss + 8, 24), 68)
+  };
+}
+function applyTheme(hex) {
+  const v = themeVars(hex || DEFAULT_THEME);
+  const root = document.documentElement;
+  for (const k in v) root.style.setProperty(k, v[k]);
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute('content', '#' + v['--bg-rgb'].split(',').map(x => (+x).toString(16).padStart(2, '0')).join(''));
+}
+const themeFor = () => { const c = view.name === 'col' ? curCol() : null; return (c && c.theme) || settings.theme || DEFAULT_THEME; };
+
+const SET_KEY = 'bobina-settings';
+function loadSettings() {
+  try {
+    const x = JSON.parse(localStorage.getItem(SET_KEY) || 'null');
+    if (x) settings = { theme: x.theme || DEFAULT_THEME, avatar: x.avatar || '' };
+  } catch (e) { /* ignorar */ }
+}
+function saveSettings() {
+  try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch (e) { /* ignorar */ }
+  if (cloudOn()) fb.setDoc(fb.doc(db, 'users', user.uid, 'meta', 'settings'), clone(settings)).catch(e => console.error(e));
+}
+async function loadCloudSettings() {
+  try {
+    const snap = await fb.getDoc(fb.doc(db, 'users', user.uid, 'meta', 'settings'));
+    if (snap.exists()) {
+      const x = snap.data();
+      settings = { theme: x.theme || DEFAULT_THEME, avatar: x.avatar || '' };
+      try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch (e) { /* ignorar */ }
+    } else if (settings.theme !== DEFAULT_THEME || settings.avatar) saveSettings();
+  } catch (e) { console.error(e); }
+}
+const avatarSrc = () => settings.avatar || (user && user.photoURL) || '';
+
+/* ---------- confirmación con el nombre de la app ---------- */
+function confirmAsync(text, ok = 'Aceptar', danger = false) {
+  return new Promise(res => {
+    const m = document.createElement('div');
+    m.className = 'modalbg confirm';
+    m.innerHTML = `<div class="modal"><h3>Mis Colecciones</h3><p>${esc(text)}</p><div class="sheetactions"><button class="btn ghost" data-r="0">Cancelar</button><button class="btn ${danger ? 'dangerfill' : 'primary'}" data-r="1">${esc(ok)}</button></div></div>`;
+    m.addEventListener('click', e => {
+      const b = e.target.closest('[data-r]');
+      if (b) { m.remove(); res(b.dataset.r === '1'); }
+      else if (e.target === m) { m.remove(); res(false); }
+    });
+    document.body.appendChild(m);
+  });
+}
+
+/* ---------- singular / plural del nombre de la colección ---------- */
+function singWord(w) {
+  if (w.length <= 3) return w;
+  if (/iones$/.test(w)) return w.slice(0, -5) + 'ión';
+  if (/ces$/.test(w)) return w.slice(0, -3) + 'z';
+  if (/[^aeiouáéíóú]es$/.test(w) && w.length > 4) return w.slice(0, -2);
+  if (/s$/.test(w)) return w.slice(0, -1);
+  return w;
+}
+function plurWord(w) {
+  if (w.length <= 2 || /s$/.test(w)) return w;
+  if (/z$/.test(w)) return w.slice(0, -1) + 'ces';
+  if (/ión$/.test(w)) return w.slice(0, -3) + 'iones';
+  if (/[aeiouáéíóú]$/.test(w)) return w + 's';
+  return w + 'es';
+}
+function itemNoun(name, n) {
+  let w = String(name || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (w.length > 1 && ['mis', 'mi', 'nuestros', 'nuestras', 'nuestro', 'nuestra'].includes(w[0])) w.shift();
+  if (!w.length) return n === 1 ? 'pieza' : 'piezas';
+  const isPlural = /[aeiouáéíóúns]s$|[^s]s$/.test(w[0]) && w[0].length > 3;
+  if (n === 1) return w.map(x => isPlural ? singWord(x) : x).join(' ');
+  return w.map(x => isPlural ? x : plurWord(x)).join(' ');
+}
+
 function toast(msg) {
   const t = document.createElement('div');
   t.className = 'toast';
@@ -93,7 +225,7 @@ const INFO = {
     h: `<p>Cada pieza tiene siempre un <b>nombre</b> (obligatorio, no se puede quitar). Además puedes guardar los datos que quieras:</p>
       <p><b>Extras:</b> toca uno de los sugeridos (Notas, Valoración, Material…) y se añade al momento. Si lo quitas, vuelve a aparecer ahí por si lo quieres de nuevo.</p>
       <p><b>Campo propio:</b> escribe el nombre, elige el tipo y pulsa el botón <b>+</b>. Hasta que no lo pulses no se añade.</p>
-      <p><b>Tipos:</b> Texto (una línea), Texto largo (notas), Número, Fecha, Valoración (estrellas), Lista (tú añades las opciones una a una con el ✓) y Sí/No (casilla).</p>
+      <p><b>Tipos:</b> Texto (una línea), Texto largo (notas), Número, Fecha, Valoración (estrellas), Una opción o Varias opciones (listas en las que tú añades cada opción con el ✓) y Sí/No (casilla). En las listas puedes activar «Etiqueta junto a la categoría» para que su valor salga como etiqueta en el resumen.</p>
       <p>Con las flechas cambias el orden y con la X quitas el campo. Al quitar uno se borran sus datos de todas las piezas cuando guardes.</p>`
   },
   cats: {
@@ -113,7 +245,7 @@ function showInfo(k) {
   m.innerHTML = `<div class="modal"><h3>${esc(d.t)}</h3>${d.h}<button class="btn primary" data-act="closeInfo">Entendido</button></div>`;
   document.body.appendChild(m);
 }
-const closeInfo = () => document.querySelectorAll('.modalbg').forEach(m => m.remove());
+const closeInfo = () => { picker = null; document.querySelectorAll('.modalbg:not(.confirm)').forEach(m => m.remove()); };
 
 /* ---------- datos ---------- */
 function makeCollection(key, name, order) {
@@ -144,6 +276,25 @@ function normalizeState(st) {
       it.name = String(n || '').trim();
       if (tf) delete it.values[tf.id];
       ch.i.push(it);
+    }
+  }
+  for (const c of st.collections) {
+    const fl = c.fields || [];
+    const li = fl.findIndex(f => f.id === 'leido' && f.type === 'yesno');
+    const pi = fl.findIndex(f => f.id === 'porleer' && f.type === 'yesno');
+    if (li >= 0 && pi >= 0 && !fl.some(f => f.id === 'lectura')) {
+      const at = Math.min(li, pi);
+      c.fields = fl.filter(f => f.id !== 'leido' && f.id !== 'porleer');
+      c.fields.splice(at, 0, { id: 'lectura', label: 'Lectura', type: 'choice', options: ['Leído', 'Por leer'], badge: true });
+      if (!ch.c.includes(c)) ch.c.push(c);
+      for (const it of st.items.filter(i => i.collectionId === c.id)) {
+        const v = it.values || {};
+        const val = v.leido ? 'Leído' : (v.porleer ? 'Por leer' : '');
+        delete v.leido; delete v.porleer;
+        if (val) v.lectura = val;
+        it.values = v;
+        if (!ch.i.includes(it)) ch.i.push(it);
+      }
     }
   }
   return ch;
@@ -246,7 +397,7 @@ async function maybeUploadLocal() {
   if (state.collections.length) return;
   const local = loadLocal();
   if (!local.collections.length) return;
-  if (confirm('Hay colecciones guardadas en este dispositivo. ¿Quieres subirlas a tu cuenta?')) {
+  if (await confirmAsync('Hay colecciones guardadas en este dispositivo. ¿Quieres subirlas a tu cuenta?', 'Subirlas')) {
     state = local;
     for (const c of state.collections) dbSet('collections', c);
     for (const it of state.items) dbSet('items', it);
@@ -258,6 +409,7 @@ async function onAuth(u) {
   try {
     if (u) {
       await loadCloud();
+      await loadCloudSettings();
       const ch = normalizeState(state);
       ch.c.forEach(c => dbSet('collections', c));
       ch.i.forEach(i => dbSet('items', i));
@@ -271,6 +423,7 @@ async function onAuth(u) {
   maybeAutoOpen();
   if (view.name === 'col' && !curCol()) view = { name: 'home', id: null };
   render();
+  if (profileOpen) openProfile(true);
 }
 
 async function login() {
@@ -292,7 +445,8 @@ function maybeAutoOpen() {
   autoOpened = true;
   if (state.collections.length === 1) {
     view = { name: 'col', id: state.collections[0].id };
-    filters = { category: 'Todas', q: '' };
+    filters = newFilters();
+    history.pushState({ col: true }, '');
   }
 }
 
@@ -319,8 +473,10 @@ function compress(file) {
 }
 
 async function addFiles(files) {
-  for (const f of files) {
-    if (!form || form.photos.length >= MAX_PHOTOS) break;
+  if (!form) return;
+  const left = MAX_PHOTOS - form.photos.length;
+  if (files.length > left) toast(left > 0 ? `Solo caben ${MAX_PHOTOS} fotos: añado las primeras ${left}` : `Ya tienes ${MAX_PHOTOS} fotos`);
+  for (const f of files.slice(0, Math.max(left, 0))) {
     try {
       const data = await compress(f);
       const total = form.photos.reduce((a, p) => a + p.length, 0) + data.length;
@@ -336,12 +492,15 @@ function renderPhotos() {
   if (!box || !form) return;
   box.innerHTML = form.photos.map((p, i) => `<div class="ph"><img src="${p}" alt=""><button data-act="rmPhoto" data-i="${i}">${IC.x}</button></div>`).join('')
     + (form.photos.length < MAX_PHOTOS ? '<button class="ph add" data-act="addPhoto">+</button>' : '');
+  const ai = $('#aiRow');
+  if (ai) ai.innerHTML = (CLOUD && form.photos.length) ? `<button type="button" class="aibtn" data-act="fillAI">${IC.spark} Rellenar con IA</button>` : '';
 }
 
 /* ---------- valores y tarjetas ---------- */
 function fmtVal(f, val) {
   if (!f) return '';
   if (f.type === 'yesno') return val ? f.label : '';
+  if (Array.isArray(val)) return val.join(', ');
   if (val === undefined || val === null || val === '') return '';
   if (f.type === 'rating') return '★'.repeat(+val);
   if (f.type === 'date') { const d = new Date(val + 'T00:00'); return isNaN(d) ? String(val) : d.toLocaleDateString('es-ES'); }
@@ -354,7 +513,7 @@ const subtitleOf = (c, it) => {
 };
 
 function searchText(c, it) {
-  const vals = Object.values(it.values || {}).filter(x => typeof x === 'string' || typeof x === 'number');
+  const vals = Object.values(it.values || {}).flatMap(x => Array.isArray(x) ? x : [x]).filter(x => typeof x === 'string' || typeof x === 'number');
   return [it.name || '', ...vals, it.category || ''].join(' ').toLowerCase();
 }
 
@@ -371,15 +530,17 @@ function cardHtml(c, it) {
 
 /* ---------- pantallas ---------- */
 function accountBtn() {
-  if (!CLOUD || !ready) return '';
-  return `<button class="iconbtn${user ? ' on' : ''}" data-act="account" aria-label="${user ? 'Tu cuenta' : 'Iniciar sesión'}">${IC.user}</button>`;
+  if (!ready) return '';
+  const src = avatarSrc();
+  return `<button class="iconbtn avatar${user ? ' on' : ''}" data-act="account" aria-label="Perfil">${src ? `<img src="${esc(src)}" alt="" referrerpolicy="no-referrer">` : IC.user}</button>`;
 }
 
 function render() {
   const app = $('#app');
   if (!ready) { app.innerHTML = '<div class="page"><div class="empty show"><h3>Cargando…</h3></div></div>'; return; }
-  if (view.name === 'col' && curCol()) renderCollection();
-  else { view = { name: 'home', id: null }; renderHome(); }
+  if (view.name === 'col' && !curCol()) view = { name: 'home', id: null };
+  applyTheme(themeFor());
+  if (view.name === 'col') renderCollection(); else renderHome();
 }
 
 function renderHome() {
@@ -393,7 +554,7 @@ function renderHome() {
     <div class="content">
       ${cols.length ? `<div class="group">${cols.map(c => {
         const n = state.items.filter(i => i.collectionId === c.id).length;
-        return `<button class="row" data-act="openCol" data-id="${c.id}"><span class="rowtxt"><span class="rowtitle">${esc(c.name)}</span><span class="rowsub">${n} ${n === 1 ? 'pieza' : 'piezas'}</span></span>${cicon(c, 42)}<span class="chev">${IC.chev}</span></button>`;
+        return `<button class="row" data-act="openCol" data-id="${c.id}"><span class="rowtxt"><span class="rowtitle">${esc(c.name)}</span><span class="rowsub">${n} ${esc(itemNoun(c.name, n))}</span></span>${cicon(c, 42)}<span class="chev">${IC.chev}</span></button>`;
       }).join('')}</div>` : '<p class="hint center">Crea tu primera colección con una plantilla o desde cero.</p>'}
       <button class="addrow" data-act="newCol">${IC.plusS} Nueva colección</button>
     </div></div>`;
@@ -420,11 +581,66 @@ function renderCollection() {
   renderGrid();
 }
 
+const curVal = d => d.key === '__cat' ? (filters.category === 'Todas' ? '' : filters.category) : (filters.vals[d.key] || '');
+const filtersActive = () => filters.category !== 'Todas' || Object.keys(filters.vals).length > 0;
+
+function filterDefs(c) {
+  const defs = [];
+  if (c.categories.length) defs.push({ key: '__cat', label: 'Categoría', options: c.categories.map(x => ({ v: x, l: x })) });
+  const all = state.items.filter(i => i.collectionId === c.id);
+  c.fields.forEach(f => {
+    if (f.type === 'select' || f.type === 'choice') {
+      const used = new Set();
+      all.forEach(it => toArr((it.values || {})[f.id]).forEach(x => used.add(x)));
+      const opts = [...new Set([...(f.options || []), ...used])];
+      if (opts.length) defs.push({ key: f.id, label: f.label, options: opts.map(x => ({ v: x, l: x })) });
+    } else if (f.type === 'yesno') defs.push({ key: f.id, label: f.label, options: [{ v: 'si', l: 'Sí' }, { v: 'no', l: 'No' }] });
+    else if (f.type === 'rating') defs.push({ key: f.id, label: f.label, options: [1, 2, 3, 4, 5].map(n => ({ v: String(n), l: `${n} ${n === 1 ? 'estrella' : 'estrellas'} o más` })) });
+  });
+  return defs;
+}
+
+function itemPasses(c, it) {
+  if (filters.category !== 'Todas' && it.category !== filters.category) return false;
+  for (const [k, val] of Object.entries(filters.vals)) {
+    const f = c.fields.find(x => x.id === k);
+    if (!f) continue;
+    const v = (it.values || {})[k];
+    if (f.type === 'yesno') { if ((val === 'si') !== !!v) return false; }
+    else if (f.type === 'rating') { if ((+v || 0) < +val) return false; }
+    else if (!toArr(v).includes(val)) return false;
+  }
+  return true;
+}
+
 function renderDials() {
   const c = curCol();
   if (!c || !$('#catDial')) return;
-  $('#catDial').innerHTML = ['Todas', ...c.categories].map(x => `<button data-act="cat" data-v="${esc(x)}" class="${x === filters.category ? 'active' : ''}">${esc(x)}</button>`).join('')
+  $('#catDial').innerHTML = `<button data-act="clearFilters" class="${filtersActive() ? '' : 'active'}">Todas</button>`
+    + filterDefs(c).map(d => {
+      const cur = curVal(d);
+      const opt = d.options.find(o => o.v === cur);
+      return `<button class="fchip${opt ? ' active' : ''}" data-act="filterMenu" data-k="${esc(d.key)}">${esc(d.label)}${opt ? ': ' + esc(opt.l) : ''}<span class="fcv">${IC.chevD}</span></button>`;
+    }).join('')
     + `<button class="editcats" data-act="editCats" aria-label="Editar categorías">${IC.pencil}</button>`;
+}
+
+function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove()); }
+function openMenu(anchor, d) {
+  closeMenu();
+  const cur = curVal(d);
+  const m = document.createElement('div');
+  m.className = 'menu';
+  m.dataset.k = d.key;
+  m.innerHTML = `<button class="${cur ? '' : 'on'}" data-act="filterPick" data-k="${esc(d.key)}" data-v="">Todos</button>`
+    + d.options.map(o => `<button class="${o.v === cur ? 'on' : ''}" data-act="filterPick" data-k="${esc(d.key)}" data-v="${esc(o.v)}">${esc(o.l)}</button>`).join('')
+    + (d.key === '__cat' ? '<div class="mdiv"></div><button data-act="editCats">Editar categorías…</button>' : '');
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  const w = m.offsetWidth || 200;
+  m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+  m.style.top = (r.bottom + 6) + 'px';
+  m.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 24) + 'px';
 }
 
 function renderGrid() {
@@ -432,9 +648,7 @@ function renderGrid() {
   if (!c || !$('#grid')) return;
   const all = state.items.filter(i => i.collectionId === c.id);
   const q = filters.q.trim().toLowerCase();
-  const list = all.filter(it =>
-    (filters.category === 'Todas' || it.category === filters.category) &&
-    (!q || searchText(c, it).includes(q)));
+  const list = all.filter(it => itemPasses(c, it) && (!q || searchText(c, it).includes(q)));
   $('#counter').textContent = pad(list.length) + '/' + pad(all.length);
   const empty = $('#empty');
   if (!all.length) {
@@ -476,14 +690,61 @@ function openPage(html, keepScroll = false) {
   sc.scrollTop = top;
 }
 function closePage() {
+  profileOpen = false;
   const sc = $('#screen');
   if (sc) { sc.classList.remove('open'); sc.innerHTML = ''; }
   document.body.classList.remove('noscroll');
   form = null; draft = null; cdraft = null;
+  applyTheme(themeFor());
 }
 function backPage() {
   if (form && form.fromDetail && form.id) { openDetail(form.id); return; }
   closePage();
+}
+
+
+/* ---------- perfil (pantalla completa) ---------- */
+function squareAvatar(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = rej;
+    r.onload = ev => {
+      const img = new Image();
+      img.onerror = rej;
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = 256;
+        cv.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+        res(cv.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = ev.target.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+function openProfile(keep = false) {
+  if (!keep) { form = null; draft = null; cdraft = null; }
+  profileOpen = true;
+  const src = avatarSrc();
+  const name = user ? (user.displayName || user.email || 'Tu cuenta') : 'Sin iniciar sesión';
+  const sub = user ? (user.email || '') : (CLOUD ? 'Inicia sesión para guardar tus colecciones en la nube.' : 'Tus colecciones se guardan solo en este dispositivo.');
+  const body = `<div class="pcard"><span class="pavatar">${src ? `<img src="${esc(src)}" alt="" referrerpolicy="no-referrer">` : IC.userL}</span><div class="ptxt"><div class="pname">${esc(name)}</div><div class="psub">${esc(sub)}</div></div></div>
+    ${!user && CLOUD ? '<button class="btn primary wide" data-act="login">Iniciar sesión con Google</button>' : ''}
+    <div class="sect">
+      ${sh(IC.user, 'Foto de perfil')}
+      <p class="hint">${user && user.photoURL && !settings.avatar ? 'Usas la foto de tu cuenta de Google. Puedes poner otra.' : 'Puedes elegir la foto que quieras.'}</p>
+      <div class="rowbtns"><button class="optchip" data-act="avatarPick">Cambiar foto</button>${settings.avatar ? `<button class="optchip" data-act="avatarReset">${user && user.photoURL ? 'Usar la de Google' : 'Quitar foto'}</button>` : ''}</div>
+      <input type="file" id="avatarInput" accept="image/*" hidden>
+    </div>
+    <div class="sect">
+      ${sh(iconSvg('art', 16, 1.8, 'g'), 'Tema de la app')}
+      <p class="hint">Elige el color base de la app. Cada colección puede tener su propio color desde sus ajustes.</p>
+      ${themeSwatches(settings.theme, 'setTheme', false)}
+    </div>`;
+  const foot = user ? '<div class="sheetactions"><button class="btn danger" data-act="logout">Cerrar sesión</button></div>' : '';
+  openPage(pageHtml('Perfil', body, foot), keep);
 }
 
 /* ----- detalle de una pieza (solo lectura) ----- */
@@ -494,7 +755,8 @@ function openDetail(id) {
   form = null; draft = null; cdraft = null;
   const v = it.values || {};
   const photos = it.photos || [];
-  const rows = c.fields.map(f => {
+  const tags = c.fields.filter(f => f.badge).flatMap(f => toArr(v[f.id]));
+  const rows = c.fields.filter(f => !f.badge).map(f => {
     const val = v[f.id];
     let out = '';
     if (f.type === 'yesno') out = val ? 'Sí' : '';
@@ -505,10 +767,12 @@ function openDetail(id) {
   openPage(pageHtml(esc(c.name), `<div class="detail">
       ${photos.length ? `<div class="dphotos">${photos.map(p => `<img src="${p}" alt="" data-act="zoom" data-id="${it.id}">`).join('')}</div>` : `<div class="dnophoto">${b3d(logo(34, '#fff'), 76)}</div>`}
       <h1 class="dname">${esc(it.name || 'Sin nombre')}</h1>
-      ${it.category ? `<span class="dcat">${esc(it.category)}</span>` : ''}
+      ${(it.category || tags.length) ? `<div class="dtags">${it.category ? `<span class="dcat">${esc(it.category)}</span>` : ''}${tags.map(t => `<span class="dcat tag2">${esc(t)}</span>`).join('')}</div>` : ''}
       ${rows ? `<div class="dcard">${rows}</div>` : ''}
     </div>`) + `<div class="fab"><button data-act="editItem" data-id="${it.id}" aria-label="Editar pieza">${IC.pencilL}</button></div>`);
 }
+
+const pickSummary = arr => arr.length ? esc(arr.join(', ')) : '<span class="ph0">Seleccionar</span>';
 
 function fieldHtml(f, val) {
   const lab = `<label>${esc(f.label)}</label>`;
@@ -521,10 +785,10 @@ function fieldHtml(f, val) {
       return `<div class="field">${lab}<div class="stars" data-fid="${f.id}" data-val="${n}">${[1, 2, 3, 4, 5].map(i => `<span data-act="star" data-v="${i}" class="${i <= n ? 'on' : ''}">${starSvg(26)}</span>`).join('')}</div></div>`;
     }
     case 'yesno': return `<div class="field ynrow${val ? ' on' : ''}" data-act="yn" data-fid="${f.id}" data-val="${val ? 1 : 0}"><span class="yncircle">${IC.check}</span><span class="ynlabel">${esc(f.label)}</span></div>`;
-    case 'select': {
-      const opts = f.options || [];
-      const custom = val && !opts.includes(val);
-      return `<div class="field">${lab}<select data-fid="${f.id}" data-sel="1"><option value="">—</option>${opts.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}<option value="__other__" ${custom ? 'selected' : ''}>Otra (escribir)</option></select><input type="text" class="other" data-other="${f.id}" placeholder="Escribe aquí" value="${custom ? esc(val) : ''}" style="${custom ? 'display:block;' : ''}"></div>`;
+    case 'select':
+    case 'choice': {
+      const arr = toArr(val);
+      return `<div class="field">${lab}<button type="button" class="pickbtn" data-act="pick" data-fid="${f.id}" data-val="${esc(JSON.stringify(arr))}"><span class="pv">${pickSummary(arr)}</span>${IC.chevD}</button></div>`;
     }
     default: return `<div class="field">${lab}<input type="text" data-fid="${f.id}" value="${esc(val)}"></div>`;
   }
@@ -539,7 +803,7 @@ function openItem(id, fromDetail = false) {
   const v = it ? it.values || {} : {};
   const cats = [...c.categories];
   if (it && it.category && !cats.includes(it.category)) cats.push(it.category);
-  const body = `<div class="field"><label>Fotos</label><div class="photos" id="photos"></div><input type="file" id="photoInput" accept="image/*" multiple hidden></div>
+  const body = `<div class="field"><label>Fotos</label><div class="photos" id="photos"></div><input type="file" id="photoInput" accept="image/*" multiple hidden><div id="aiRow"></div></div>
     <div class="field"><label>Nombre <span class="req">obligatorio</span></label><input type="text" id="f_name" value="${esc(it ? it.name : '')}"></div>
     <div class="field"><label>Categoría</label>
       <select id="f_cat"><option value="">Sin categoría</option>${cats.map(x => `<option value="${esc(x)}" ${it && it.category === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="__new__">+ Nueva categoría…</option></select>
@@ -562,16 +826,149 @@ function readItemValues(c) {
     if (!el) return;
     if (f.type === 'rating') values[f.id] = +el.dataset.val || 0;
     else if (f.type === 'yesno') values[f.id] = el.dataset.val === '1';
-    else if (f.type === 'select') {
-      let v = el.value;
-      if (v === '__other__') {
-        v = document.querySelector(`#screen [data-other="${f.id}"]`).value.trim();
-        if (v && !(f.options || []).includes(v)) { (f.options = f.options || []).push(v); form.collectionDirty = true; }
-      }
-      values[f.id] = v;
+    else if (f.type === 'select' || f.type === 'choice') {
+      let arr = [];
+      try { arr = JSON.parse(el.dataset.val || '[]'); } catch (e) { arr = []; }
+      values[f.id] = f.type === 'select' ? arr : (arr[0] || '');
     } else values[f.id] = el.value.trim();
   });
   return values;
+}
+
+
+/* ----- selector de opciones (una o varias) ----- */
+function pickerOpts() {
+  const o = [...(picker.f.options || [])];
+  picker.sel.forEach(x => { if (!o.includes(x)) o.push(x); });
+  return o;
+}
+function openPicker(btn) {
+  const c = curCol();
+  const f = c && c.fields.find(x => x.id === btn.dataset.fid);
+  if (!f) return;
+  let sel = [];
+  try { sel = JSON.parse(btn.dataset.val || '[]'); } catch (e) { sel = []; }
+  picker = { f, btn, multi: f.type === 'select', sel, q: '' };
+  const m = document.createElement('div');
+  m.className = 'modalbg picker';
+  m.innerHTML = `<div class="modal pickmodal"><h3>${esc(f.label)}</h3>
+    <p class="hint">${picker.multi ? 'Puedes marcar varias opciones.' : 'Elige una opción.'}</p>
+    ${pickerOpts().length > 10 ? '<input type="text" class="pickq" data-pickq="1" placeholder="Buscar…">' : ''}
+    <div class="picklist"></div>
+    <div class="rowedit pickadd"><input type="text" id="pickNew" data-addbtn="pickNewBtn" placeholder="Otra opción…"><button class="addbtn" id="pickNewBtn" data-act="pickAdd" aria-label="Añadir">${IC.check}</button></div>
+    <div class="sheetactions"><button class="btn ghost" data-act="pickClear">Borrar</button><button class="btn primary" data-act="pickDone">Listo</button></div></div>`;
+  document.body.appendChild(m);
+  renderPickList();
+}
+function renderPickList() {
+  const box = document.querySelector('.picklist');
+  if (!box || !picker) return;
+  const top = box.scrollTop;
+  const q = picker.q.toLowerCase();
+  box.innerHTML = pickerOpts().filter(o => !q || o.toLowerCase().includes(q)).map(o => `<button class="prow${picker.sel.includes(o) ? ' on' : ''}" data-act="pickToggle" data-v="${esc(o)}"><span class="pmark${picker.multi ? ' sq' : ''}">${IC.check}</span><span>${esc(o)}</span></button>`).join('') || '<p class="hint">Sin resultados.</p>';
+  box.scrollTop = top;
+}
+function finishPicker() {
+  if (!picker) return;
+  const { btn, sel } = picker;
+  btn.dataset.val = JSON.stringify(sel);
+  btn.querySelector('.pv').innerHTML = pickSummary(sel);
+  picker = null;
+  document.querySelectorAll('.modalbg.picker').forEach(m => m.remove());
+}
+
+/* ----- rellenar con IA a partir de la foto (Firebase AI Logic / Gemini) ----- */
+const AI_SDK = '12.0.0';
+const AI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+let aiCache = null;
+async function getAIClient() {
+  if (aiCache) return aiCache;
+  const base = `https://www.gstatic.com/firebasejs/${AI_SDK}/`;
+  const [appM, aiM] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-ai.js')]);
+  const { publicApiKey, databaseId, ...rest } = firebaseConfig;
+  let app;
+  try { app = appM.getApp('ai'); } catch (e) { app = appM.initializeApp({ ...rest, apiKey: publicApiKey || firebaseConfig.apiKey }, 'ai'); }
+  aiCache = { ai: aiM.getAI(app, { backend: new aiM.GoogleAIBackend() }), aiM };
+  return aiCache;
+}
+function aiPrompt(c) {
+  const fields = c.fields.filter(f => !['rating', 'longtext', 'yesno'].includes(f.type)).map(f => {
+    const o = { id: f.id, nombre: f.label, tipo: f.type };
+    if ((f.type === 'select' || f.type === 'choice') && (f.options || []).length <= 40) o.opciones = f.options;
+    return o;
+  });
+  return `Eres un asistente que ayuda a catalogar una colección llamada "${c.name}". Mira la foto, identifica el objeto y devuelve SOLO un JSON con esta forma: {"nombre": "...", "categoria": "...", "campos": {"id_del_campo": valor}}.
+Reglas: rellena únicamente lo que veas claramente o puedas identificar con seguridad; si dudas, no incluyas ese dato y no inventes nada. "nombre" es el nombre o modelo de la pieza. "categoria" debe ser una de estas (o vacío si ninguna encaja): ${JSON.stringify(c.categories)}. Campos disponibles: ${JSON.stringify(fields)}. Tipo "choice": un solo texto (usa una de las opciones si encaja). Tipo "select": lista de textos. Tipo "number": solo dígitos. Tipo "date": AAAA-MM-DD. Tipo "text": texto corto. Responde en español.`;
+}
+async function aiAnalyze(c, photo) {
+  const { ai, aiM } = await getAIClient();
+  const parts = [aiPrompt(c), { inlineData: { mimeType: 'image/jpeg', data: photo.split(',')[1] } }];
+  let last = null;
+  for (const name of AI_MODELS) {
+    try {
+      const model = aiM.getGenerativeModel(ai, { model: name, generationConfig: { responseMimeType: 'application/json' } });
+      const res = await model.generateContent(parts);
+      const txt = res.response.text().replace(/^```json|```$/g, '').trim();
+      return JSON.parse(txt);
+    } catch (e) { last = e; }
+  }
+  throw last;
+}
+function applyAI(c, r) {
+  let n = 0;
+  const nameEl = $('#f_name');
+  if (r && r.nombre && nameEl && !nameEl.value.trim()) { nameEl.value = String(r.nombre); n++; }
+  const catEl = $('#f_cat');
+  if (r && r.categoria && catEl && !catEl.value) {
+    const m = c.categories.find(x => x.toLowerCase() === String(r.categoria).toLowerCase());
+    if (m) { catEl.value = m; n++; }
+  }
+  const vals = (r && r.campos) || {};
+  c.fields.forEach(f => {
+    const v = vals[f.id];
+    if (v === undefined || v === null || v === '') return;
+    const el = document.querySelector(`#screen [data-fid="${f.id}"]`);
+    if (!el) return;
+    if (f.type === 'text' || f.type === 'number' || f.type === 'date') {
+      if (!el.value.trim()) { el.value = String(v); n++; }
+    } else if (f.type === 'select' || f.type === 'choice') {
+      let cur = [];
+      try { cur = JSON.parse(el.dataset.val || '[]'); } catch (e) { cur = []; }
+      if (cur.length) return;
+      let arr = toArr(v).map(x => String(x).trim()).filter(Boolean);
+      if (f.type === 'choice') arr = arr.slice(0, 1);
+      if (!arr.length) return;
+      arr = arr.map(x => {
+        const ex = (f.options || []).find(o => o.toLowerCase() === x.toLowerCase());
+        if (ex) return ex;
+        (f.options = f.options || []).push(x);
+        form.collectionDirty = true;
+        return x;
+      });
+      el.dataset.val = JSON.stringify(arr);
+      el.querySelector('.pv').innerHTML = pickSummary(arr);
+      n++;
+    }
+  });
+  return n;
+}
+async function fillAI(btn) {
+  if (!form || !form.photos.length) { toast('Añade una foto primero'); return; }
+  const c = curCol();
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Analizando la foto…';
+  try {
+    const r = await aiAnalyze(c, form.photos[0]);
+    const n = applyAI(c, r);
+    toast(n ? `Rellenado con IA (${n} ${n === 1 ? 'dato' : 'datos'}). Revisa que sea correcto.` : 'No he podido identificar datos en la foto.');
+  } catch (e) {
+    console.error(e);
+    toast('No se pudo usar la IA. Revisa que Firebase AI Logic esté activado en tu proyecto.');
+  } finally {
+    const b = $('[data-act="fillAI"]');
+    if (b) { b.disabled = false; b.innerHTML = label; }
+  }
 }
 
 function saveItem() {
@@ -596,7 +993,7 @@ function saveItem() {
   const dirty = form.collectionDirty;
   const back = form.fromDetail;
   closePage();
-  if (filters.category !== 'Todas' && filters.category !== it.category) filters.category = 'Todas';
+  if (!itemPasses(c, it)) { filters.category = 'Todas'; filters.vals = {}; }
   if (dirty) dbSet('collections', c);
   dbSet('items', it);
   renderDials();
@@ -604,10 +1001,10 @@ function saveItem() {
   if (back) openDetail(it.id);
 }
 
-function delItem() {
+async function delItem() {
   const it = state.items.find(x => x.id === form.id);
   if (!it) return;
-  if (!confirm(`¿Seguro que quieres eliminar "${it.name || 'esta pieza'}"?`)) return;
+  if (!(await confirmAsync(`¿Seguro que quieres eliminar "${it.name || 'esta pieza'}"?`, 'Eliminar', true))) return;
   state.items = state.items.filter(x => x.id !== it.id);
   closePage();
   dbDel('items', it.id);
@@ -642,7 +1039,7 @@ function createCol() {
 
 function openCol(id) {
   view = { name: 'col', id };
-  filters = { category: 'Todas', q: '' };
+  filters = newFilters();
   history.pushState({ col: true }, '');
   render();
 }
@@ -656,7 +1053,7 @@ function goHome() {
 /* ----- ajustes de la colección (nombre, datos de cada pieza, subtítulo) ----- */
 function openEditCol() {
   const c = curCol();
-  draft = { name: c.name, icon: iconKey(c), fields: clone(c.fields), subtitle: c.subtitle || '', newFieldLabel: '', newFieldType: 'text', newOpts: {} };
+  draft = { name: c.name, icon: iconKey(c), theme: c.theme || '', fields: clone(c.fields), subtitle: c.subtitle || '', newFieldLabel: '', newFieldType: 'text', newOpts: {} };
   renderEditCol();
 }
 
@@ -670,28 +1067,37 @@ function syncDraft() {
   const nt = $('#newFieldType'); if (nt) draft.newFieldType = nt.value;
 }
 
-const helpOf = f => f.type === 'select'
-  ? 'Escribe una opción y pulsa ✓ para añadirla. Aparecerán en la lista al añadir o editar una pieza.'
+const helpOf = f => (f.type === 'select' || f.type === 'choice')
+  ? `Escribe una opción y pulsa ✓ para añadirla. ${f.type === 'select' ? 'Al rellenar una pieza se podrán marcar varias.' : 'Al rellenar una pieza solo se podrá elegir una.'}`
   : (FIELD_HELP[f.type] || '');
 
 function fieldRowHtml(f, i) {
   const locked = f.type === 'rating';
   const pend = ((draft && draft.newOpts) || {})[f.id] || '';
-  const opts = f.type === 'select' ? `${(f.options || []).length ? `<div class="optlist">${f.options.map((o, k) => `<span class="optpill">${esc(o)}<button data-act="optDel" data-f="${f.id}" data-k="${k}" aria-label="Quitar ${esc(o)}">${IC.x}</button></span>`).join('')}</div>` : ''}
+  const isList = f.type === 'select' || f.type === 'choice';
+  const opts = isList ? `${(f.options || []).length ? `<div class="optlist">${f.options.map((o, k) => `<span class="optpill">${esc(o)}<button data-act="optDel" data-f="${f.id}" data-k="${k}" aria-label="Quitar ${esc(o)}">${IC.x}</button></span>`).join('')}</div>` : ''}
     <div class="rowedit"><input type="text" data-newopt="${f.id}" data-addbtn="optbtn-${f.id}" placeholder="Nueva opción" value="${esc(pend)}"><button class="addbtn${pend.trim() ? ' ready' : ''}" id="optbtn-${f.id}" data-act="optAdd" data-f="${f.id}" aria-label="Añadir opción">${IC.check}</button></div>` : '';
   return `<div class="fieldedit">
     <div class="rowedit">${locked
       ? `<span class="lockname">${IC.lock}${esc(f.label)}</span>`
       : `<input type="text" data-flabel="${i}" value="${esc(f.label)}" placeholder="Nombre del campo">`}
       <button data-act="fieldUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="fieldDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="fieldDel" data-i="${i}" aria-label="Quitar">${IC.x}</button></div>
-    <div class="rowedit meta"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span></div>
+    <div class="rowedit meta"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span>${isList ? `<button class="optchip sm${f.badge ? ' on' : ''}" data-act="toggleBadge" data-i="${i}">Etiqueta junto a la categoría</button>` : ''}</div>
     ${opts}
     ${helpOf(f) ? `<p class="help">${esc(helpOf(f))}</p>` : ''}
   </div>`;
 }
 
+function themeSwatches(cur, act, inherit) {
+  const sw = hex => { const v = themeVars(hex); return `--sw1:${v['--g1']};--sw2:${v['--g2']};--sw3:${v['--g3']}`; };
+  const isCustom = cur && !THEMES.some(t => t.hex === cur);
+  return `<div class="swatches">${inherit ? `<button class="optchip${cur ? '' : ' on'}" data-act="${act}" data-hex="">Como la app</button>` : ''}
+    ${THEMES.map(t => `<button class="swatch${cur === t.hex ? ' on' : ''}" data-act="${act}" data-hex="${t.hex}" style="${sw(t.hex)}" aria-label="${t.name}"></button>`).join('')}
+    <label class="swatch custom${isCustom ? ' on' : ''}" aria-label="Color personalizado"><input type="color" value="${isCustom ? cur : DEFAULT_THEME}" data-theme="${act}">${IC.plusS}</label></div>`;
+}
+
 function renderEditCol() {
-  const subOpts = draft.fields.filter(f => ['text', 'select', 'number', 'date'].includes(f.type));
+  const subOpts = draft.fields.filter(f => ['text', 'select', 'choice', 'number', 'date'].includes(f.type));
   const used = new Set(draft.fields.map(f => f.id));
   const extras = EXTRAS.filter(e => !used.has(e.id));
   const body = `<div class="sect">
@@ -701,6 +1107,11 @@ function renderEditCol() {
     <div class="sect">
       ${sh(iconSvg('spark', 16, 1.8, 'g'), 'Icono')}
       <div class="icongrid">${Object.keys(ICON_PATHS).map(k => `<button class="iconopt${k === draft.icon ? ' on' : ''}" data-act="pickIcon" data-v="${k}" aria-label="Icono ${k}">${b3d(iconSvg(k, 21, 1.9, 'g'), 42)}</button>`).join('')}</div>
+    </div>
+    <div class="sect">
+      ${sh(iconSvg('art', 16, 1.8, 'g'), 'Color de la colección')}
+      <p class="hint">Elige un color solo para esta colección, o usa el de la app.</p>
+      ${themeSwatches(draft.theme || '', 'setColTheme', true)}
     </div>
     <div class="sect">
       ${sh(IC.list, 'Datos de cada pieza', '<button class="infobtn" data-act="info" data-k="fields" aria-label="Más información">i</button>')}
@@ -753,6 +1164,8 @@ function saveCol() {
   });
   c.name = draft.name.trim();
   c.icon = draft.icon;
+  c.theme = draft.theme || '';
+  filters.vals = {};
   c.fields = draft.fields.map(f => ({ ...f, label: f.label.trim() }));
   c.subtitle = ids.has(draft.subtitle) ? draft.subtitle : '';
   closePage();
@@ -761,9 +1174,9 @@ function saveCol() {
   render();
 }
 
-function delCol() {
+async function delCol() {
   const c = curCol();
-  if (!confirm(`¿Seguro que quieres eliminar la colección "${c.name}" y todas sus piezas?`)) return;
+  if (!(await confirmAsync(`¿Seguro que quieres eliminar la colección "${c.name}" y todas sus piezas?`, 'Eliminar', true))) return;
   const its = state.items.filter(i => i.collectionId === c.id);
   state.items = state.items.filter(i => i.collectionId !== c.id);
   state.collections = state.collections.filter(x => x.id !== c.id);
@@ -839,7 +1252,7 @@ const A = {
   editCol: () => openEditCol(),
   saveCol: () => saveCol(),
   delCol: () => delCol(),
-  editCats: () => openEditCats(),
+  editCats: () => { closeMenu(); openEditCats(); },
   saveCats: () => saveCats(),
   newItem: () => openItem(null),
   openDetail: el => openDetail(el.dataset.id),
@@ -858,12 +1271,48 @@ const A = {
     $('#clearSearch').style.display = 'none';
     renderGrid();
   },
-  account: () => {
-    if (user) openSheet(`<h2>Tu cuenta</h2><p class="hint">${esc(user.displayName || '')}${user.displayName && user.email ? '<br>' : ''}${esc(user.email || '')}</p><div class="sheetactions"><button class="btn ghost" data-act="closeSheet">Cerrar</button><button class="btn danger" data-act="logout">Cerrar sesión</button></div>`);
-    else login();
-  },
+  account: () => openProfile(),
   login: () => login(),
-  logout: () => { closeSheet(); if (fb) fb.signOut(auth); },
+  logout: () => { closePage(); closeSheet(); if (fb) fb.signOut(auth); },
+  filterMenu: el => { const d = filterDefs(curCol()).find(x => x.key === el.dataset.k); if (d) openMenu(el, d); },
+  filterPick: el => {
+    const k = el.dataset.k, v = el.dataset.v;
+    if (k === '__cat') filters.category = v || 'Todas';
+    else if (v) filters.vals[k] = v;
+    else delete filters.vals[k];
+    closeMenu(); renderDials(); renderGrid();
+  },
+  clearFilters: () => { filters.category = 'Todas'; filters.vals = {}; renderDials(); renderGrid(); },
+  pick: el => openPicker(el),
+  pickToggle: el => {
+    if (!picker) return;
+    const v = el.dataset.v, i = picker.sel.indexOf(v);
+    if (picker.multi) { if (i >= 0) picker.sel.splice(i, 1); else picker.sel.push(v); renderPickList(); }
+    else { picker.sel = i >= 0 ? [] : [v]; if (picker.sel.length) finishPicker(); else renderPickList(); }
+  },
+  pickAdd: () => {
+    if (!picker) return;
+    const inp = $('#pickNew');
+    const v = inp.value.trim();
+    if (!v) { toast('Escribe la opción antes de pulsar ✓'); inp.focus(); return; }
+    const ex = pickerOpts().find(o => o.toLowerCase() === v.toLowerCase());
+    const val = ex || v;
+    if (!ex) { picker.f.options = picker.f.options || []; picker.f.options.push(v); if (form) form.collectionDirty = true; }
+    if (picker.multi) {
+      if (!picker.sel.includes(val)) picker.sel.push(val);
+      inp.value = '';
+      const b = document.getElementById('pickNewBtn'); if (b) b.classList.remove('ready');
+      renderPickList();
+    } else { picker.sel = [val]; finishPicker(); }
+  },
+  pickClear: () => { if (picker) { picker.sel = []; renderPickList(); } },
+  pickDone: () => finishPicker(),
+  fillAI: el => fillAI(el),
+  toggleBadge: el => { syncDraft(); const f = draft.fields[+el.dataset.i]; f.badge = !f.badge; renderEditCol(); },
+  setTheme: el => { settings.theme = el.dataset.hex || DEFAULT_THEME; saveSettings(); applyTheme(themeFor()); openProfile(true); },
+  setColTheme: el => { syncDraft(); draft.theme = el.dataset.hex; applyTheme(draft.theme || settings.theme); renderEditCol(); },
+  avatarPick: () => $('#avatarInput').click(),
+  avatarReset: () => { settings.avatar = ''; saveSettings(); render(); openProfile(true); },
   addPhoto: () => $('#photoInput').click(),
   rmPhoto: el => { form.photos.splice(+el.dataset.i, 1); renderPhotos(); },
   star: el => {
@@ -917,7 +1366,7 @@ const A = {
     const label = draft.newFieldLabel.trim();
     if (!label) { toast('Escribe el nombre del campo antes de pulsar +'); $('#newFieldLabel').focus(); return; }
     const f = { id: 'f' + uid(), label, type: draft.newFieldType };
-    if (f.type === 'select') f.options = [];
+    if (f.type === 'select' || f.type === 'choice') f.options = [];
     draft.fields.push(f);
     draft.newFieldLabel = '';
     renderEditCol();
@@ -930,10 +1379,10 @@ const A = {
   },
   fieldUp: el => { syncDraft(); move(draft.fields, +el.dataset.i, -1); renderEditCol(); },
   fieldDown: el => { syncDraft(); move(draft.fields, +el.dataset.i, 1); renderEditCol(); },
-  fieldDel: el => {
+  fieldDel: async el => {
     syncDraft();
     const f = draft.fields[+el.dataset.i];
-    if (!confirm(`¿Quitar el campo "${f.label}"? Se perderán sus datos en todas las piezas al guardar.`)) return;
+    if (!(await confirmAsync(`¿Quitar el campo "${f.label}"? Se perderán sus datos en todas las piezas al guardar.`, 'Quitar', true))) return;
     draft.fields.splice(+el.dataset.i, 1);
     if (draft.subtitle === f.id) draft.subtitle = '';
     renderEditCol();
@@ -941,6 +1390,12 @@ const A = {
 };
 
 document.addEventListener('click', e => {
+  const menu = document.querySelector('.menu');
+  if (menu && !e.target.closest('.menu')) {
+    const same = e.target.closest('[data-act="filterMenu"]');
+    closeMenu();
+    if (same && same.dataset.k === menu.dataset.k) return;
+  }
   if (e.target.classList && e.target.classList.contains('modalbg')) { closeInfo(); return; }
   if (e.target.id === 'overlay') { closeSheet(); return; }
   if (e.target.closest('#lightbox')) { closeLightbox(); return; }
@@ -951,6 +1406,17 @@ document.addEventListener('click', e => {
 document.addEventListener('change', async e => {
   const t = e.target;
   if (t.id === 'photoInput') { await addFiles(Array.from(t.files)); t.value = ''; return; }
+  if (t.id === 'avatarInput') {
+    const f = t.files[0];
+    if (f) { try { settings.avatar = await squareAvatar(f); saveSettings(); render(); openProfile(true); } catch (err) { toast('No se pudo leer la foto'); } }
+    t.value = '';
+    return;
+  }
+  if (t.type === 'color' && t.dataset.theme) {
+    if (t.dataset.theme === 'setTheme') { settings.theme = t.value; saveSettings(); applyTheme(themeFor()); openProfile(true); }
+    else { draft.theme = t.value; applyTheme(t.value); renderEditCol(); }
+    return;
+  }
   if (t.matches && t.matches('select[data-sel]')) {
     const o = document.querySelector(`[data-other="${t.dataset.fid}"]`);
     o.style.display = t.value === '__other__' ? 'block' : 'none';
@@ -970,6 +1436,8 @@ document.addEventListener('input', e => {
     $('#clearSearch').style.display = t.value ? 'flex' : 'none';
     renderGrid();
   }
+  if (t.type === 'color' && t.dataset.theme) { applyTheme(t.value); return; }
+  if (t.dataset && t.dataset.pickq !== undefined && picker) { picker.q = t.value; renderPickList(); return; }
   if (t.dataset && t.dataset.addbtn) {
     const b = document.getElementById(t.dataset.addbtn);
     if (b) b.classList.toggle('ready', !!t.value.trim());
@@ -984,17 +1452,35 @@ document.addEventListener('keydown', e => {
   }
 });
 
+const repush = () => history.pushState(view.name === 'col' ? { col: true } : { home: true }, '');
 window.addEventListener('popstate', () => {
-  const restore = () => { if (view.name === 'col') history.pushState({ col: true }, ''); };
-  if (document.querySelector('.modalbg')) { closeInfo(); restore(); return; }
-  if ($('#lightbox').classList.contains('open')) { closeLightbox(); restore(); return; }
-  if ($('#overlay').classList.contains('open')) { closeSheet(); restore(); return; }
-  if ($('#screen') && $('#screen').classList.contains('open')) { backPage(); restore(); return; }
-  if (view.name === 'col') { view = { name: 'home', id: null }; render(); }
+  const st = history.state || {};
+  const cm = document.querySelector('.modalbg.confirm');
+  if (cm) { const b = cm.querySelector('[data-r="0"]'); if (b) b.click(); repush(); return; }
+  if (document.querySelector('.modalbg')) { closeInfo(); repush(); return; }
+  if ($('.menu')) { closeMenu(); repush(); return; }
+  if ($('#lightbox').classList.contains('open')) { closeLightbox(); repush(); return; }
+  if ($('#overlay').classList.contains('open')) { closeSheet(); repush(); return; }
+  if ($('#screen') && $('#screen').classList.contains('open')) { backPage(); repush(); return; }
+  if (st.root) {
+    const now = Date.now();
+    if (now - lastBack < 2500) { history.back(); return; }
+    lastBack = now;
+    toast('Pulsa atrás otra vez para salir');
+    view = { name: 'home', id: null };
+    history.pushState({ home: true }, '');
+    render();
+    return;
+  }
+  if (st.home && view.name !== 'home') { view = { name: 'home', id: null }; render(); }
 });
 
 /* ---------- arranque ---------- */
+loadSettings();
+applyTheme(settings.theme);
 state = loadLocal();
+history.replaceState({ root: true }, '');
+history.pushState({ home: true }, '');
 maybeAutoOpen();
 render();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
