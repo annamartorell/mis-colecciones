@@ -44,7 +44,8 @@ const IC = {
   list: svg('<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>', 16),
   tag: svg('<path d="M3.5 12V4.5H11l9 9-7.5 7.5z"/><circle cx="7.8" cy="8.8" r="1"/>', 17),
   text: svg('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>', 16),
-  plusS: svg('<path d="M12 5v14M5 12h14"/>', 20)
+  plusS: svg('<path d="M12 5v14M5 12h14"/>', 20),
+  pencilL: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', 24)
 };
 const ICON_PATHS = {
   spark: '<path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/>',
@@ -92,7 +93,7 @@ const INFO = {
     h: `<p>Cada pieza tiene siempre un <b>nombre</b> (obligatorio, no se puede quitar). Además puedes guardar los datos que quieras:</p>
       <p><b>Extras:</b> toca uno de los sugeridos (Notas, Valoración, Material…) y se añade al momento. Si lo quitas, vuelve a aparecer ahí por si lo quieres de nuevo.</p>
       <p><b>Campo propio:</b> escribe el nombre, elige el tipo y pulsa el botón <b>+</b>. Hasta que no lo pulses no se añade.</p>
-      <p><b>Tipos:</b> Texto (una línea), Texto largo (notas), Número, Fecha, Valoración (estrellas), Lista (opciones separadas por comas) y Sí/No (casilla).</p>
+      <p><b>Tipos:</b> Texto (una línea), Texto largo (notas), Número, Fecha, Valoración (estrellas), Lista (tú añades las opciones una a una con el ✓) y Sí/No (casilla).</p>
       <p>Con las flechas cambias el orden y con la X quitas el campo. Al quitar uno se borran sus datos de todas las piezas cuando guardes.</p>`
   },
   cats: {
@@ -118,7 +119,7 @@ const closeInfo = () => document.querySelectorAll('.modalbg').forEach(m => m.rem
 function makeCollection(key, name, order) {
   const t = TEMPLATES[key];
   return {
-    id: uid(), name: name || t.name, icon: t.icon, nameLabel: t.nameLabel,
+    id: uid(), name: name || t.name, icon: t.icon, nameLabel: 'Nombre',
     categories: [...t.categories], fields: clone(t.fields), subtitle: t.subtitle,
     order, createdAt: Date.now()
   };
@@ -361,8 +362,8 @@ function cardHtml(c, it) {
   const sub = subtitleOf(c, it);
   const cover = (it.photos || [])[0];
   return `<div class="card">
-    <div class="thumb" data-act="thumb" data-id="${it.id}">${cover ? `<img src="${cover}" alt="">` : logo(30)}</div>
-    <div class="cardbody" data-act="openItem" data-id="${it.id}">
+    <div class="thumb" data-act="openDetail" data-id="${it.id}">${cover ? `<img src="${cover}" alt="">` : logo(30)}</div>
+    <div class="cardbody" data-act="openDetail" data-id="${it.id}">
       <p class="model">${esc(it.name || 'Sin nombre')}</p>
       ${sub ? `<p class="sub">${esc(sub)}</p>` : ''}
     </div></div>`;
@@ -448,11 +449,65 @@ function renderGrid() {
 
 /* ---------- paneles ---------- */
 function openSheet(html) { $('#sheet').innerHTML = html; $('#overlay').classList.add('open'); }
-function closeSheet() { $('#overlay').classList.remove('open'); form = null; draft = null; cdraft = null; selTpl = null; }
+function closeSheet() { $('#overlay').classList.remove('open'); selTpl = null; }
 function closeLightbox() { $('#lightbox').classList.remove('open'); $('#lightbox').innerHTML = ''; }
 function openLightbox(photos) {
   $('#lightbox').innerHTML = photos.map(p => `<img src="${p}" alt="">`).join('');
   $('#lightbox').classList.add('open');
+}
+
+/* ---------- pantallas completas (ajustes, categorías, detalle y edición de piezas) ---------- */
+function ensureScreen() {
+  let sc = $('#screen');
+  if (!sc) { sc = document.createElement('div'); sc.id = 'screen'; sc.className = 'screen'; document.body.appendChild(sc); }
+  return sc;
+}
+const pageHtml = (title, body, foot = '', right = '') => `<div class="pagewrap">
+  <div class="pagehead"><button class="iconbtn" data-act="backPage" aria-label="Volver">${IC.back}</button><h2>${title}</h2><span class="pageright">${right}</span></div>
+  <div class="pagebody">${body}</div>
+  ${foot ? `<div class="pagefoot">${foot}</div>` : ''}
+</div>`;
+function openPage(html, keepScroll = false) {
+  const sc = ensureScreen();
+  const top = keepScroll ? sc.scrollTop : 0;
+  sc.innerHTML = html;
+  sc.classList.add('open');
+  document.body.classList.add('noscroll');
+  sc.scrollTop = top;
+}
+function closePage() {
+  const sc = $('#screen');
+  if (sc) { sc.classList.remove('open'); sc.innerHTML = ''; }
+  document.body.classList.remove('noscroll');
+  form = null; draft = null; cdraft = null;
+}
+function backPage() {
+  if (form && form.fromDetail && form.id) { openDetail(form.id); return; }
+  closePage();
+}
+
+/* ----- detalle de una pieza (solo lectura) ----- */
+function openDetail(id) {
+  const c = curCol();
+  const it = state.items.find(x => x.id === id);
+  if (!c || !it) return;
+  form = null; draft = null; cdraft = null;
+  const v = it.values || {};
+  const photos = it.photos || [];
+  const rows = c.fields.map(f => {
+    const val = v[f.id];
+    let out = '';
+    if (f.type === 'yesno') out = val ? 'Sí' : '';
+    else if (f.type === 'rating') out = +val ? [1, 2, 3, 4, 5].map(i => `<span class="dst${i <= +val ? ' on' : ''}">${starSvg(20)}</span>`).join('') : '';
+    else out = esc(fmtVal(f, val));
+    return out ? `<div class="drow"><span class="dlabel">${esc(f.label)}</span><span class="dval">${out}</span></div>` : '';
+  }).join('');
+  openPage(pageHtml(esc(c.name), `<div class="detail">
+      ${photos.length ? `<div class="dphotos">${photos.map(p => `<img src="${p}" alt="" data-act="zoom" data-id="${it.id}">`).join('')}</div>` : `<div class="dnophoto">${b3d(logo(34, '#fff'), 76)}</div>`}
+      <h1 class="dname">${esc(it.name || 'Sin nombre')}</h1>
+      ${it.category ? `<span class="dcat">${esc(it.category)}</span>` : ''}
+      ${rows ? `<div class="dcard">${rows}</div>` : ''}
+    </div>`) + `<div class="fab"><button data-act="editItem" data-id="${it.id}" aria-label="Editar pieza">${IC.pencilL}</button></div>`);
 }
 
 function fieldHtml(f, val) {
@@ -477,40 +532,40 @@ function fieldHtml(f, val) {
 const starSvg = s => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="currentColor" aria-hidden="true"><polygon points="12,2.5 14.9,8.9 21.8,9.6 16.6,14.2 18.1,21 12,17.5 5.9,21 7.4,14.2 2.2,9.6 9.1,8.9"/></svg>`;
 
 /* ----- nueva / editar pieza ----- */
-function openItem(id) {
+function openItem(id, fromDetail = false) {
   const c = curCol();
   const it = id ? state.items.find(x => x.id === id) : null;
-  form = { id: it ? it.id : null, photos: it ? [...(it.photos || [])] : [], collectionDirty: false };
+  form = { id: it ? it.id : null, photos: it ? [...(it.photos || [])] : [], collectionDirty: false, fromDetail: !!(fromDetail && it) };
   const v = it ? it.values || {} : {};
   const cats = [...c.categories];
   if (it && it.category && !cats.includes(it.category)) cats.push(it.category);
-  openSheet(`<h2>${it ? 'Editar pieza' : 'Nueva pieza'}</h2>
-    <div class="field"><label>Fotos</label><div class="photos" id="photos"></div><input type="file" id="photoInput" accept="image/*" multiple hidden></div>
-    <div class="field"><label>${esc(c.nameLabel || 'Nombre')} <span class="req">obligatorio</span></label><input type="text" id="f_name" value="${esc(it ? it.name : '')}"></div>
+  const body = `<div class="field"><label>Fotos</label><div class="photos" id="photos"></div><input type="file" id="photoInput" accept="image/*" multiple hidden></div>
+    <div class="field"><label>Nombre <span class="req">obligatorio</span></label><input type="text" id="f_name" value="${esc(it ? it.name : '')}"></div>
     <div class="field"><label>Categoría</label>
       <select id="f_cat"><option value="">Sin categoría</option>${cats.map(x => `<option value="${esc(x)}" ${it && it.category === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="__new__">+ Nueva categoría…</option></select>
       <input type="text" class="newinput" id="f_cat_new" placeholder="Nombre de la categoría (obligatorio)">
     </div>
-    ${c.fields.map(f => fieldHtml(f, v[f.id])).join('')}
-    <div class="sheetactions">
-      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
+    ${c.fields.map(f => fieldHtml(f, v[f.id])).join('')}`;
+  const foot = `<div class="sheetactions">
+      <button class="btn ghost" data-act="backPage">Cancelar</button>
       ${it ? '<button class="btn danger" data-act="delItem">Eliminar</button>' : ''}
       <button class="btn primary" data-act="saveItem">Guardar</button>
-    </div>`);
+    </div>`;
+  openPage(pageHtml(it ? 'Editar pieza' : 'Nueva pieza', body, foot));
   renderPhotos();
 }
 
 function readItemValues(c) {
   const values = {};
   c.fields.forEach(f => {
-    const el = document.querySelector(`#sheet [data-fid="${f.id}"]`);
+    const el = document.querySelector(`#screen [data-fid="${f.id}"]`);
     if (!el) return;
     if (f.type === 'rating') values[f.id] = +el.dataset.val || 0;
     else if (f.type === 'yesno') values[f.id] = el.dataset.val === '1';
     else if (f.type === 'select') {
       let v = el.value;
       if (v === '__other__') {
-        v = document.querySelector(`#sheet [data-other="${f.id}"]`).value.trim();
+        v = document.querySelector(`#screen [data-other="${f.id}"]`).value.trim();
         if (v && !(f.options || []).includes(v)) { (f.options = f.options || []).push(v); form.collectionDirty = true; }
       }
       values[f.id] = v;
@@ -539,12 +594,14 @@ function saveItem() {
     state.items.push(it);
   }
   const dirty = form.collectionDirty;
-  closeSheet();
+  const back = form.fromDetail;
+  closePage();
   if (filters.category !== 'Todas' && filters.category !== it.category) filters.category = 'Todas';
   if (dirty) dbSet('collections', c);
   dbSet('items', it);
   renderDials();
   renderGrid();
+  if (back) openDetail(it.id);
 }
 
 function delItem() {
@@ -552,7 +609,7 @@ function delItem() {
   if (!it) return;
   if (!confirm(`¿Seguro que quieres eliminar "${it.name || 'esta pieza'}"?`)) return;
   state.items = state.items.filter(x => x.id !== it.id);
-  closeSheet();
+  closePage();
   dbDel('items', it.id);
   renderGrid();
 }
@@ -599,7 +656,7 @@ function goHome() {
 /* ----- ajustes de la colección (nombre, datos de cada pieza, subtítulo) ----- */
 function openEditCol() {
   const c = curCol();
-  draft = { name: c.name, icon: iconKey(c), fields: clone(c.fields), subtitle: c.subtitle || '', newFieldLabel: '', newFieldType: 'text' };
+  draft = { name: c.name, icon: iconKey(c), fields: clone(c.fields), subtitle: c.subtitle || '', newFieldLabel: '', newFieldType: 'text', newOpts: {} };
   renderEditCol();
 }
 
@@ -607,38 +664,37 @@ function syncDraft() {
   if (!draft) return;
   const n = $('#c_name'); if (n) draft.name = n.value;
   document.querySelectorAll('[data-flabel]').forEach(el => { draft.fields[+el.dataset.flabel].label = el.value; });
-  document.querySelectorAll('[data-fopts]').forEach(el => {
-    draft.fields[+el.dataset.fopts].options = el.value.split(',').map(s => s.trim()).filter(Boolean);
-  });
-  const s = $('#c_sub'); if (s) draft.subtitle = s.value;
+  draft.newOpts = draft.newOpts || {};
+  document.querySelectorAll('[data-newopt]').forEach(el => { draft.newOpts[el.dataset.newopt] = el.value; });
   const nl = $('#newFieldLabel'); if (nl) draft.newFieldLabel = nl.value;
   const nt = $('#newFieldType'); if (nt) draft.newFieldType = nt.value;
 }
 
 const helpOf = f => f.type === 'select'
-  ? 'Escribe el nombre de cada opción separado por comas. Así las tendrás en la lista al añadir o editar una pieza.'
+  ? 'Escribe una opción y pulsa ✓ para añadirla. Aparecerán en la lista al añadir o editar una pieza.'
   : (FIELD_HELP[f.type] || '');
 
 function fieldRowHtml(f, i) {
   const locked = f.type === 'rating';
+  const pend = ((draft && draft.newOpts) || {})[f.id] || '';
+  const opts = f.type === 'select' ? `${(f.options || []).length ? `<div class="optlist">${f.options.map((o, k) => `<span class="optpill">${esc(o)}<button data-act="optDel" data-f="${f.id}" data-k="${k}" aria-label="Quitar ${esc(o)}">${IC.x}</button></span>`).join('')}</div>` : ''}
+    <div class="rowedit"><input type="text" data-newopt="${f.id}" data-addbtn="optbtn-${f.id}" placeholder="Nueva opción" value="${esc(pend)}"><button class="addbtn${pend.trim() ? ' ready' : ''}" id="optbtn-${f.id}" data-act="optAdd" data-f="${f.id}" aria-label="Añadir opción">${IC.check}</button></div>` : '';
   return `<div class="fieldedit">
     <div class="rowedit">${locked
       ? `<span class="lockname">${IC.lock}${esc(f.label)}</span>`
       : `<input type="text" data-flabel="${i}" value="${esc(f.label)}" placeholder="Nombre del campo">`}
       <button data-act="fieldUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="fieldDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="fieldDel" data-i="${i}" aria-label="Quitar">${IC.x}</button></div>
-    <div class="rowedit meta"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span>${f.type === 'select' ? `<input type="text" data-fopts="${i}" placeholder="Madera, Tela, Papel…" value="${esc((f.options || []).join(', '))}">` : ''}</div>
+    <div class="rowedit meta"><span class="typetag">${FIELD_TYPES[f.type] || f.type}</span></div>
+    ${opts}
     ${helpOf(f) ? `<p class="help">${esc(helpOf(f))}</p>` : ''}
   </div>`;
 }
 
 function renderEditCol() {
-  const c = curCol();
   const subOpts = draft.fields.filter(f => ['text', 'select', 'number', 'date'].includes(f.type));
   const used = new Set(draft.fields.map(f => f.id));
   const extras = EXTRAS.filter(e => !used.has(e.id));
-  const top = $('#sheet').scrollTop;
-  openSheet(`<h2>Ajustes de la colección</h2>
-    <div class="sect">
+  const body = `<div class="sect">
       ${sh(IC.pencil, 'Nombre de la colección')}
       <div class="field"><input type="text" id="c_name" value="${esc(draft.name)}"></div>
     </div>
@@ -649,29 +705,29 @@ function renderEditCol() {
     <div class="sect">
       ${sh(IC.list, 'Datos de cada pieza', '<button class="infobtn" data-act="info" data-k="fields" aria-label="Más información">i</button>')}
       <p class="hint">Lo que guardas de cada pieza. El nombre es obligatorio y siempre está; lo demás lo decides tú.</p>
-      <div class="lockedrow"><span>${IC.lock}${esc(c.nameLabel || 'Nombre')}</span><span class="tag">Obligatorio</span></div>
+      <div class="lockedrow"><span>${IC.lock}Nombre</span><span class="tag">Obligatorio</span></div>
       ${draft.fields.map(fieldRowHtml).join('')}
       <p class="subhead">Extras que puedes añadir</p>
       <div class="chips">${extras.length ? extras.map(e => `<button class="chip" data-act="addExtra" data-id="${e.id}">+ ${esc(e.label)}</button>`).join('') : '<span class="hint">Ya tienes todos los extras.</span>'}</div>
       <p class="subhead">O crea un campo propio</p>
       <p class="hint">Escribe el nombre, elige el tipo y pulsa el botón <b>+</b> para añadirlo.</p>
       <div class="rowedit">
-        <input type="text" id="newFieldLabel" data-addinput="fieldAdd" placeholder="Nombre del campo" value="${esc(draft.newFieldLabel)}">
+        <input type="text" id="newFieldLabel" data-addbtn="btnFieldAdd" placeholder="Nombre del campo" value="${esc(draft.newFieldLabel)}">
         <select id="newFieldType">${Object.entries(FIELD_TYPES).map(([k, l]) => `<option value="${k}" ${draft.newFieldType === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <button class="addbtn${draft.newFieldLabel.trim() ? ' ready' : ''}" data-act="fieldAdd" aria-label="Añadir campo">${IC.plus}</button>
+        <button class="addbtn${draft.newFieldLabel.trim() ? ' ready' : ''}" id="btnFieldAdd" data-act="fieldAdd" aria-label="Añadir campo">${IC.plus}</button>
       </div>
     </div>
     <div class="sect">
       ${sh(IC.text, 'Subtítulo de la tarjeta')}
       <p class="hint">Un dato que aparece bajo el nombre en cada tarjeta. En la tarjeta solo hay nombre y subtítulo.</p>
       <div class="optchips">${[{ id: '', label: 'Ninguno' }, ...subOpts].map(o => `<button class="optchip${draft.subtitle === o.id ? ' on' : ''}" data-act="setSub" data-v="${o.id}">${esc(o.label)}</button>`).join('')}</div>
-    </div>
-    <div class="sheetactions rowfix">
+    </div>`;
+  const foot = `<div class="sheetactions rowfix">
       <button class="btn primary" data-act="saveCol">Guardar</button>
-      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
+      <button class="btn ghost" data-act="backPage">Cancelar</button>
       <button class="btn text" data-act="delCol">Eliminar colección</button>
-    </div>`);
-  $('#sheet').scrollTop = top;
+    </div>`;
+  openPage(pageHtml('Ajustes de la colección', body, foot), true);
 }
 
 function move(arr, i, d) {
@@ -684,6 +740,8 @@ function saveCol() {
   syncDraft();
   const c = curCol();
   if (draft.newFieldLabel.trim()) { toast(`Falta pulsar + para añadir «${draft.newFieldLabel.trim()}»`); return; }
+  const pendOpt = Object.entries(draft.newOpts || {}).find(([k, v]) => v.trim() && draft.fields.some(f => f.id === k));
+  if (pendOpt) { toast(`Falta pulsar ✓ para añadir «${pendOpt[1].trim()}»`); return; }
   if (!draft.name.trim()) { toast('La colección necesita un nombre'); return; }
   if (draft.fields.some(f => !f.label.trim())) { toast('Todos los campos necesitan un nombre'); return; }
   const ids = new Set(draft.fields.map(f => f.id));
@@ -697,7 +755,7 @@ function saveCol() {
   c.icon = draft.icon;
   c.fields = draft.fields.map(f => ({ ...f, label: f.label.trim() }));
   c.subtitle = ids.has(draft.subtitle) ? draft.subtitle : '';
-  closeSheet();
+  closePage();
   dbSet('collections', c);
   changed.forEach(i => dbSet('items', i));
   render();
@@ -709,7 +767,7 @@ function delCol() {
   const its = state.items.filter(i => i.collectionId === c.id);
   state.items = state.items.filter(i => i.collectionId !== c.id);
   state.collections = state.collections.filter(x => x.id !== c.id);
-  closeSheet();
+  closePage();
   its.forEach(i => dbDel('items', i.id));
   dbDel('collections', c.id);
   goHome();
@@ -729,21 +787,19 @@ function syncCats() {
 }
 
 function renderEditCats() {
-  const top = $('#sheet').scrollTop;
-  openSheet(`<div class="secthead"><div class="st">${b3d(IC.tag, 34)}<h2>Categorías</h2></div><button class="infobtn" data-act="info" data-k="cats" aria-label="Más información">i</button></div>
-    <p class="hint">Sirven para agrupar y filtrar tus piezas. Puedes cambiar el nombre de todas, reordenarlas o borrarlas.</p>
+  const body = `<p class="hint">Sirven para agrupar y filtrar tus piezas. Puedes cambiar el nombre de todas, reordenarlas o borrarlas.</p>
     <div class="lockedrow"><span>${IC.lock}Todas</span></div>
     ${cdraft.rows.map((r, i) => `<div class="rowedit"><input type="text" data-cat="${i}" value="${esc(r.name)}" placeholder="Nombre de la categoría"><button data-act="catUp" data-i="${i}" aria-label="Subir">${IC.up}</button><button data-act="catDown" data-i="${i}" aria-label="Bajar">${IC.down}</button><button data-act="catDel" data-i="${i}" aria-label="Borrar">${IC.x}</button></div>`).join('')}
     <p class="subhead">Añadir una categoría</p>
     <div class="rowedit">
-      <input type="text" id="newCat" data-addinput="catAdd" placeholder="Nombre de la nueva categoría" value="${esc(cdraft.newCat)}">
-      <button class="addbtn${cdraft.newCat.trim() ? ' ready' : ''}" data-act="catAdd" aria-label="Añadir categoría">${IC.plus}</button>
-    </div>
-    <div class="sheetactions rowfix">
+      <input type="text" id="newCat" data-addbtn="btnCatAdd" placeholder="Nombre de la nueva categoría" value="${esc(cdraft.newCat)}">
+      <button class="addbtn${cdraft.newCat.trim() ? ' ready' : ''}" id="btnCatAdd" data-act="catAdd" aria-label="Añadir categoría">${IC.plus}</button>
+    </div>`;
+  const foot = `<div class="sheetactions rowfix">
       <button class="btn primary" data-act="saveCats">Guardar</button>
-      <button class="btn ghost" data-act="closeSheet">Cancelar</button>
-    </div>`);
-  $('#sheet').scrollTop = top;
+      <button class="btn ghost" data-act="backPage">Cancelar</button>
+    </div>`;
+  openPage(pageHtml('Categorías', body, foot, '<button class="infobtn" data-act="info" data-k="cats" aria-label="Más información">i</button>'), true);
 }
 
 function saveCats() {
@@ -766,7 +822,7 @@ function saveCats() {
   });
   c.categories = newCats;
   filters.category = 'Todas';
-  closeSheet();
+  closePage();
   dbSet('collections', c);
   changed.forEach(i => dbSet('items', i));
   renderDials();
@@ -786,16 +842,15 @@ const A = {
   editCats: () => openEditCats(),
   saveCats: () => saveCats(),
   newItem: () => openItem(null),
-  openItem: el => openItem(el.dataset.id),
+  openDetail: el => openDetail(el.dataset.id),
+  editItem: el => openItem(el.dataset.id, true),
+  backPage: () => backPage(),
+  zoom: el => { const it = state.items.find(x => x.id === el.dataset.id); if (it && it.photos) openLightbox(it.photos); },
   saveItem: () => saveItem(),
   delItem: () => delItem(),
   closeSheet: () => closeSheet(),
   info: el => showInfo(el.dataset.k),
   closeInfo: () => closeInfo(),
-  thumb: el => {
-    const it = state.items.find(x => x.id === el.dataset.id);
-    if (it && it.photos && it.photos.length) openLightbox(it.photos); else openItem(el.dataset.id);
-  },
   cat: el => { filters.category = el.dataset.v; renderDials(); renderGrid(); },
   clearSearch: () => {
     filters.q = '';
@@ -824,6 +879,27 @@ const A = {
   },
   setSub: el => { syncDraft(); draft.subtitle = el.dataset.v; renderEditCol(); },
   pickIcon: el => { syncDraft(); draft.icon = el.dataset.v; renderEditCol(); },
+  optAdd: el => {
+    syncDraft();
+    const f = draft.fields.find(x => x.id === el.dataset.f);
+    if (!f) return;
+    const v = (draft.newOpts[f.id] || '').trim();
+    const inp = document.querySelector(`[data-newopt="${f.id}"]`);
+    if (!v) { toast('Escribe la opción antes de pulsar ✓'); if (inp) inp.focus(); return; }
+    f.options = f.options || [];
+    if (f.options.some(o => o.toLowerCase() === v.toLowerCase())) { toast('Esa opción ya existe'); return; }
+    f.options.push(v);
+    draft.newOpts[f.id] = '';
+    renderEditCol();
+    const again = document.querySelector(`[data-newopt="${f.id}"]`);
+    if (again) again.focus();
+  },
+  optDel: el => {
+    syncDraft();
+    const f = draft.fields.find(x => x.id === el.dataset.f);
+    if (f && f.options) f.options.splice(+el.dataset.k, 1);
+    renderEditCol();
+  },
   catAdd: () => {
     syncCats();
     const v = cdraft.newCat.trim();
@@ -894,16 +970,16 @@ document.addEventListener('input', e => {
     $('#clearSearch').style.display = t.value ? 'flex' : 'none';
     renderGrid();
   }
-  if (t.dataset && t.dataset.addinput) {
-    const b = document.querySelector(`[data-act="${t.dataset.addinput}"]`);
+  if (t.dataset && t.dataset.addbtn) {
+    const b = document.getElementById(t.dataset.addbtn);
     if (b) b.classList.toggle('ready', !!t.value.trim());
   }
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.addinput) {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.addbtn) {
     e.preventDefault();
-    const b = document.querySelector(`[data-act="${e.target.dataset.addinput}"]`);
+    const b = document.getElementById(e.target.dataset.addbtn);
     if (b) b.click();
   }
 });
@@ -913,6 +989,7 @@ window.addEventListener('popstate', () => {
   if (document.querySelector('.modalbg')) { closeInfo(); restore(); return; }
   if ($('#lightbox').classList.contains('open')) { closeLightbox(); restore(); return; }
   if ($('#overlay').classList.contains('open')) { closeSheet(); restore(); return; }
+  if ($('#screen') && $('#screen').classList.contains('open')) { backPage(); restore(); return; }
   if (view.name === 'col') { view = { name: 'home', id: null }; render(); }
 });
 
