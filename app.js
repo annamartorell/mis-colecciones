@@ -586,7 +586,7 @@ const filtersActive = () => filters.category !== 'Todas' || Object.keys(filters.
 
 function filterDefs(c) {
   const defs = [];
-  if (c.categories.length) defs.push({ key: '__cat', label: 'Categoría', options: c.categories.map(x => ({ v: x, l: x })) });
+  defs.push({ key: '__cat', label: 'Categoría', options: c.categories.map(x => ({ v: x, l: x })) });
   const all = state.items.filter(i => i.collectionId === c.id);
   c.fields.forEach(f => {
     if (f.type === 'select' || f.type === 'choice') {
@@ -622,7 +622,7 @@ function renderDials() {
       const opt = d.options.find(o => o.v === cur);
       return `<button class="fchip${opt ? ' active' : ''}" data-act="filterMenu" data-k="${esc(d.key)}">${esc(d.label)}${opt ? ': ' + esc(opt.l) : ''}<span class="fcv">${IC.chevD}</span></button>`;
     }).join('')
-    + `<button class="editcats" data-act="editCats" aria-label="Editar categorías">${IC.pencil}</button>`;
+;
 }
 
 function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove()); }
@@ -632,9 +632,9 @@ function openMenu(anchor, d) {
   const m = document.createElement('div');
   m.className = 'menu';
   m.dataset.k = d.key;
-  m.innerHTML = `<button class="${cur ? '' : 'on'}" data-act="filterPick" data-k="${esc(d.key)}" data-v="">Todos</button>`
+  m.innerHTML = (d.options.length ? `<button class="${cur ? '' : 'on'}" data-act="filterPick" data-k="${esc(d.key)}" data-v="">Todos</button>` : '')
     + d.options.map(o => `<button class="${o.v === cur ? 'on' : ''}" data-act="filterPick" data-k="${esc(d.key)}" data-v="${esc(o.v)}">${esc(o.l)}</button>`).join('')
-    + (d.key === '__cat' ? '<div class="mdiv"></div><button data-act="editCats">Editar categorías…</button>' : '');
+    + (d.key === '__cat' ? `${d.options.length ? '<div class="mdiv"></div>' : ''}<button data-act="editCats">${d.options.length ? 'Editar categorías…' : 'Crear categorías…'}</button>` : '');
   document.body.appendChild(m);
   const r = anchor.getBoundingClientRect();
   const w = m.offsetWidth || 200;
