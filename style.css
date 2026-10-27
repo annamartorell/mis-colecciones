@@ -308,3 +308,8 @@ body.noscroll{overflow:hidden;}
 
 /* nueva colección: "Personalizada" ocupa toda la primera fila */
 .tpl[data-k="personalizada"]{grid-column:1 / -1;}
+
+/* eliminar colección: botón bien visible en su propia fila */
+.btn.delrow{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;height:46px;background:rgba(229,139,151,.16);color:var(--danger);}
+/* pulsación larga en una colección: sin selección de texto ni menú del navegador */
+.row{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}

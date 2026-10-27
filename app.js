@@ -51,6 +51,7 @@ const IC = {
   tag: svg('<path d="M3.5 12V4.5H11l9 9-7.5 7.5z"/><circle cx="7.8" cy="8.8" r="1"/>', 17),
   text: svg('<path d="M5 7V5h14v2M12 5v14M9 19h6"/>', 16),
   plusS: svg('<path d="M12 5v14M5 12h14"/>', 20),
+  trash: svg('<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5"/>', 18),
   chevD: svg('<path d="M6 9l6 6 6-6"/>', 14),
   userL: svg('<circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-3.6 3.9-5.5 7.5-5.5s6.7 1.9 7.5 5.5"/>', 34),
   spark: svg('<path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8z"/>', 17),
@@ -80,11 +81,15 @@ const ICON_PATHS = {
   bottle: '<path d="M10 3h4v4l1.5 3.5V20a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V10.5L10 7z"/>'
 };
 const ICON_MAP = { '📷': 'camera', '🌸': 'fan', '🪙': 'coin', '✉️': 'stamp', '📚': 'book', '💿': 'vinyl', '✨': 'spark' };
-const b3d = (inner, s = 40) => `<span class="b3d" style="--s:${s}px">${inner}</span>`;
+const b3d = (inner, s = 40, theme = '') => {
+  let st = `--s:${s}px`;
+  if (theme) { const v = themeVars(theme); st += `;--g1:${v['--g1']};--g2:${v['--g2']};--g3:${v['--g3']};--glow:${v['--glow']};--glow-d:${v['--glow-d']}`; }
+  return `<span class="b3d" style="${st}">${inner}</span>`;
+};
 const sh = (icon, title, extra = '') => `<div class="secthead"><div class="st">${b3d(icon, 30)}<h3>${title}</h3></div>${extra}</div>`;
 const iconSvg = (k, s = 20, sw = 1.6, cls = 'cicon') => `<svg class="${cls}" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[k] || ICON_PATHS.spark}</svg>`;
 const iconKey = c => ICON_PATHS[c.icon] ? c.icon : (ICON_MAP[c.icon] || 'spark');
-const cicon = (c, s = 40) => b3d(iconSvg(iconKey(c), Math.round(s * 0.52), 1.9, 'g'), s);
+const cicon = (c, s = 40) => b3d(iconSvg(iconKey(c), Math.round(s * 0.52), 1.9, 'g'), s, c.theme || '');
 const logo = (s, stroke = '#b4c3dc') => `<svg class="reel-icon" viewBox="0 0 64 64" width="${s}" height="${s}" fill="none" stroke="${stroke}" stroke-width="2.4" aria-hidden="true"><rect x="8" y="8" width="24" height="48" rx="5"/><rect x="36" y="8" width="20" height="22" rx="5"/><rect x="36" y="34" width="20" height="22" rx="5"/></svg>`;
 
 
@@ -557,6 +562,7 @@ function renderHome() {
         return `<button class="row" data-act="openCol" data-id="${c.id}"><span class="rowtxt"><span class="rowtitle">${esc(c.name)}</span><span class="rowsub">${n} ${esc(itemNoun(c.name, n))}</span></span>${cicon(c, 42)}<span class="chev">${IC.chev}</span></button>`;
       }).join('')}</div>` : '<p class="hint center">Crea tu primera colección con una plantilla o desde cero.</p>'}
       <button class="addrow" data-act="newCol">${IC.plusS} Nueva colección</button>
+      <p style="text-align:center;margin:26px 0 8px;font-size:12.5px;line-height:1.7;color:var(--text-dim)">${cols.length ? 'Mantén pulsada una colección para abrir sus ajustes<br>' : ''}<a href="privacidad.html" style="color:var(--text-dim)">Política de privacidad</a></p>
     </div></div>`;
 }
 
@@ -1136,8 +1142,8 @@ function renderEditCol() {
   const foot = `<div class="sheetactions rowfix">
       <button class="btn primary" data-act="saveCol">Guardar</button>
       <button class="btn ghost" data-act="backPage">Cancelar</button>
-      <button class="btn text" data-act="delCol">Eliminar colección</button>
-    </div>`;
+    </div>
+    <button class="btn danger delrow" data-act="delCol">${IC.trash} Eliminar colección</button>`;
   openPage(pageHtml('Ajustes de la colección', body, foot), true);
 }
 
@@ -1389,7 +1395,29 @@ const A = {
   }
 };
 
+let lpTimer = null, lpStart = null, lpDone = false;
+function lpCancel() { clearTimeout(lpTimer); lpTimer = null; }
+document.addEventListener('pointerdown', e => {
+  const row = e.target.closest && e.target.closest('.row[data-act="openCol"]');
+  if (!row) return;
+  lpStart = { x: e.clientX, y: e.clientY };
+  lpCancel();
+  lpTimer = setTimeout(() => {
+    lpTimer = null; lpDone = true;
+    setTimeout(() => { lpDone = false; }, 900);
+    try { navigator.vibrate && navigator.vibrate(15); } catch (err) { /* ignorar */ }
+    openCol(row.dataset.id);
+    openEditCol();
+  }, 520);
+});
+document.addEventListener('pointermove', e => {
+  if (lpTimer && lpStart && (Math.abs(e.clientX - lpStart.x) > 10 || Math.abs(e.clientY - lpStart.y) > 10)) lpCancel();
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => document.addEventListener(t, lpCancel));
+document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.row[data-act="openCol"]')) e.preventDefault(); });
+
 document.addEventListener('click', e => {
+  if (lpDone) { lpDone = false; e.preventDefault(); return; }
   const menu = document.querySelector('.menu');
   if (menu && !e.target.closest('.menu')) {
     const same = e.target.closest('[data-act="filterMenu"]');
