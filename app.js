@@ -958,6 +958,11 @@ function applyAI(c, r) {
   });
   return n;
 }
+function aiErrorMessage(e) {
+  // El detalle técnico queda en la consola; la persona solo ve un aviso general
+  console.warn('IA:', (e && e.code) || '', (e && e.message) || e);
+  return 'No se ha podido rellenar en este momento. Inténtalo de nuevo más tarde.';
+}
 async function fillAI(btn) {
   if (!form || !form.photos.length) { toast('Añade una foto primero'); return; }
   const c = curCol();
@@ -970,7 +975,7 @@ async function fillAI(btn) {
     toast(n ? `Rellenado con IA (${n} ${n === 1 ? 'dato' : 'datos'}). Revisa que sea correcto.` : 'No he podido identificar datos en la foto.');
   } catch (e) {
     console.error(e);
-    toast('No se pudo usar la IA. Revisa que Firebase AI Logic esté activado en tu proyecto.');
+    toast(aiErrorMessage(e));
   } finally {
     const b = $('[data-act="fillAI"]');
     if (b) { b.disabled = false; b.innerHTML = label; }
