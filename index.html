@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mis colecciones</title>
+<title>Mis Colecciones</title>
+<meta name="description" content="Mis Colecciones: la aplicación para catalogar y organizar tus colecciones (cámaras, monedas, libros y lo que quieras) con fotos y categorías propias.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#080d16">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -11,13 +12,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mis colecciones">
+<meta name="apple-mobile-web-app-title" content="Mis Colecciones">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><main style="max-width:520px;margin:0 auto;padding:48px 24px;line-height:1.55;color:#e8eef8;font-family:Roboto,sans-serif">
+  <h1 style="margin:0 0 12px;font-size:26px">Mis Colecciones</h1>
+  <p>Mis Colecciones es una aplicación para catalogar y organizar tus colecciones —cámaras, monedas, libros, abanicos o lo que quieras— con fotos, categorías y campos personalizados. Puedes iniciar sesión con tu cuenta de Google para guardar tus colecciones en la nube y verlas en cualquier dispositivo.</p>
+  <p><a href="privacidad.html" style="color:#8fb6f5">Política de privacidad</a></p>
+</main></div>
 <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <div class="lightbox" id="lightbox"></div>
 <script type="module" src="app.js"></script>
