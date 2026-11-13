@@ -495,10 +495,10 @@ async function addFiles(files) {
 function renderPhotos() {
   const box = $('#photos');
   if (!box || !form) return;
-  box.innerHTML = form.photos.map((p, i) => `<div class="ph"><img src="${p}" alt=""><button data-act="rmPhoto" data-i="${i}">${IC.x}</button></div>`).join('')
+  box.innerHTML = form.photos.map((p, i) => `<div class="ph"><img src="${p}" alt="" data-act="zoomForm" data-i="${i}"><button data-act="rmPhoto" data-i="${i}">${IC.x}</button></div>`).join('')
     + (form.photos.length < MAX_PHOTOS ? '<button class="ph add" data-act="addPhoto">+</button>' : '');
   const ai = $('#aiRow');
-  if (ai) ai.innerHTML = (CLOUD && form.photos.length) ? `<button type="button" class="aibtn" data-act="fillAI">${IC.spark} Rellenar con IA</button>` : '';
+  if (ai) ai.innerHTML = (AI_ENABLED && CLOUD && form.photos.length) ? `<button type="button" class="aibtn" data-act="fillAI">${IC.spark} Rellenar con IA</button>` : '';
 }
 
 /* ---------- valores y tarjetas ---------- */
@@ -671,9 +671,11 @@ function renderGrid() {
 function openSheet(html) { $('#sheet').innerHTML = html; $('#overlay').classList.add('open'); }
 function closeSheet() { $('#overlay').classList.remove('open'); selTpl = null; }
 function closeLightbox() { $('#lightbox').classList.remove('open'); $('#lightbox').innerHTML = ''; }
-function openLightbox(photos) {
+function openLightbox(photos, start = 0) {
   $('#lightbox').innerHTML = photos.map(p => `<img src="${p}" alt="">`).join('');
   $('#lightbox').classList.add('open');
+  const im = $('#lightbox').querySelectorAll('img')[start];
+  if (im && im.scrollIntoView) im.scrollIntoView({ block: 'center' });
 }
 
 /* ---------- pantallas completas (ajustes, categorías, detalle y edición de piezas) ---------- */
@@ -862,7 +864,7 @@ function openPicker(btn) {
     ${pickerOpts().length > 10 ? '<input type="text" class="pickq" data-pickq="1" placeholder="Buscar…">' : ''}
     <div class="picklist"></div>
     <div class="rowedit pickadd"><input type="text" id="pickNew" data-addbtn="pickNewBtn" placeholder="Otra opción…"><button class="addbtn" id="pickNewBtn" data-act="pickAdd" aria-label="Añadir">${IC.check}</button></div>
-    <div class="sheetactions"><button class="btn ghost" data-act="pickClear">Borrar</button><button class="btn primary" data-act="pickDone">Listo</button></div></div>`;
+    <div class="sheetactions"><button class="btn ghost" data-act="pickCancel">Cancelar</button><button class="btn primary" data-act="pickDone">Hecho</button></div></div>`;
   document.body.appendChild(m);
   renderPickList();
 }
@@ -884,6 +886,8 @@ function finishPicker() {
 }
 
 /* ----- rellenar con IA a partir de la foto (Firebase AI Logic / Gemini) ----- */
+// La IA está desactivada de momento: el botón «Rellenar con IA» no se muestra. Para volver a activarla, poner true.
+const AI_ENABLED = false;
 const AI_SDK = '12.0.0';
 const AI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 let aiCache = null;
@@ -1269,6 +1273,7 @@ const A = {
   openDetail: el => openDetail(el.dataset.id),
   editItem: el => openItem(el.dataset.id, true),
   backPage: () => backPage(),
+  zoomForm: el => { if (form) openLightbox(form.photos, +el.dataset.i); },
   zoom: el => { const it = state.items.find(x => x.id === el.dataset.id); if (it && it.photos) openLightbox(it.photos); },
   saveItem: () => saveItem(),
   delItem: () => delItem(),
@@ -1317,6 +1322,7 @@ const A = {
     } else { picker.sel = [val]; finishPicker(); }
   },
   pickClear: () => { if (picker) { picker.sel = []; renderPickList(); } },
+  pickCancel: () => closeInfo(),
   pickDone: () => finishPicker(),
   fillAI: el => fillAI(el),
   toggleBadge: el => { syncDraft(); const f = draft.fields[+el.dataset.i]; f.badge = !f.badge; renderEditCol(); },
