@@ -17,7 +17,7 @@ let state = { collections: [], items: [] };
 let user = null, fb = null, db = null, auth = null;
 let ready = !CLOUD;
 let view = { name: 'home', id: null };
-function newFilters() { return { category: 'Todas', q: '', vals: {} }; }
+function newFilters() { return { category: 'Todas', q: '', vals: {}, sort: '' }; }
 let filters = newFilters();
 let form = null;
 let draft = null;
@@ -495,8 +495,10 @@ async function addFiles(files) {
 function renderPhotos() {
   const box = $('#photos');
   if (!box || !form) return;
-  box.innerHTML = form.photos.map((p, i) => `<div class="ph"><img src="${p}" alt="" data-act="zoomForm" data-i="${i}"><button data-act="rmPhoto" data-i="${i}">${IC.x}</button></div>`).join('')
+  box.innerHTML = form.photos.map((p, i) => `<div class="ph" data-pi="${i}" style="touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none"><img src="${p}" alt="" draggable="false" data-act="zoomForm" data-i="${i}"><button data-act="rmPhoto" data-i="${i}">${IC.x}</button></div>`).join('')
     + (form.photos.length < MAX_PHOTOS ? '<button class="ph add" data-act="addPhoto">+</button>' : '');
+  const hint = $('#photoHint');
+  if (hint) hint.innerHTML = form.photos.length > 1 ? '<p class="hint" style="margin:10px 0 0">Mantén pulsada una foto para moverla. La primera es la portada.</p>' : '';
   const ai = $('#aiRow');
   if (ai) ai.innerHTML = (AI_ENABLED && CLOUD && form.photos.length) ? `<button type="button" class="aibtn" data-act="fillAI">${IC.spark} Rellenar con IA</button>` : '';
 }
@@ -587,7 +589,23 @@ function renderCollection() {
   renderGrid();
 }
 
-const curVal = d => d.key === '__cat' ? (filters.category === 'Todas' ? '' : filters.category) : (filters.vals[d.key] || '');
+const SORTS = [
+  { v: 'nuevas', l: 'Más recientes primero', s: 'Más recientes' },
+  { v: 'antiguas', l: 'Más antiguas primero', s: 'Más antiguas' },
+  { v: 'az', l: 'Alfabético (A-Z)', s: 'A-Z' }
+];
+function sortItems(list) {
+  const k = filters.sort;
+  if (!k) return list;
+  return list.map((it, i) => [it, i]).sort((a, b) => {
+    let r = 0;
+    if (k === 'az') r = (a[0].name || '').localeCompare(b[0].name || '', 'es', { sensitivity: 'base' });
+    else if (k === 'nuevas') r = (b[0].createdAt || 0) - (a[0].createdAt || 0);
+    else r = (a[0].createdAt || 0) - (b[0].createdAt || 0);
+    return r || a[1] - b[1];
+  }).map(x => x[0]);
+}
+const curVal = d => d.key === '__sort' ? (filters.sort || '') : d.key === '__cat' ? (filters.category === 'Todas' ? '' : filters.category) : (filters.vals[d.key] || '');
 const filtersActive = () => filters.category !== 'Todas' || Object.keys(filters.vals).length > 0;
 
 function filterDefs(c) {
@@ -601,7 +619,6 @@ function filterDefs(c) {
       const opts = [...new Set([...(f.options || []), ...used])];
       if (opts.length) defs.push({ key: f.id, label: f.label, options: opts.map(x => ({ v: x, l: x })) });
     } else if (f.type === 'yesno') defs.push({ key: f.id, label: f.label, options: [{ v: 'si', l: 'Sí' }, { v: 'no', l: 'No' }] });
-    else if (f.type === 'rating') defs.push({ key: f.id, label: f.label, options: [1, 2, 3, 4, 5].map(n => ({ v: String(n), l: `${n} ${n === 1 ? 'estrella' : 'estrellas'} o más` })) });
   });
   return defs;
 }
@@ -628,7 +645,7 @@ function renderDials() {
       const opt = d.options.find(o => o.v === cur);
       return `<button class="fchip${opt ? ' active' : ''}" data-act="filterMenu" data-k="${esc(d.key)}">${esc(d.label)}${opt ? ': ' + esc(opt.l) : ''}<span class="fcv">${IC.chevD}</span></button>`;
     }).join('')
-;
+    + (() => { const so = SORTS.find(x => x.v === filters.sort); return `<button class="fchip${so ? ' active' : ''}" data-act="sortMenu" data-k="__sort">${so ? 'Ordenar: ' + esc(so.s) : 'Ordenar por'}<span class="fcv">${IC.chevD}</span></button>`; })();
 }
 
 function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove()); }
@@ -638,7 +655,7 @@ function openMenu(anchor, d) {
   const m = document.createElement('div');
   m.className = 'menu';
   m.dataset.k = d.key;
-  m.innerHTML = (d.options.length ? `<button class="${cur ? '' : 'on'}" data-act="filterPick" data-k="${esc(d.key)}" data-v="">Todos</button>` : '')
+  m.innerHTML = (d.options.length && d.key !== '__sort' ? `<button class="${cur ? '' : 'on'}" data-act="filterPick" data-k="${esc(d.key)}" data-v="">Todos</button>` : '')
     + d.options.map(o => `<button class="${o.v === cur ? 'on' : ''}" data-act="filterPick" data-k="${esc(d.key)}" data-v="${esc(o.v)}">${esc(o.l)}</button>`).join('')
     + (d.key === '__cat' ? `${d.options.length ? '<div class="mdiv"></div>' : ''}<button data-act="editCats">${d.options.length ? 'Editar categorías…' : 'Crear categorías…'}</button>` : '');
   document.body.appendChild(m);
@@ -654,7 +671,7 @@ function renderGrid() {
   if (!c || !$('#grid')) return;
   const all = state.items.filter(i => i.collectionId === c.id);
   const q = filters.q.trim().toLowerCase();
-  const list = all.filter(it => itemPasses(c, it) && (!q || searchText(c, it).includes(q)));
+  const list = sortItems(all.filter(it => itemPasses(c, it) && (!q || searchText(c, it).includes(q))));
   $('#counter').textContent = pad(list.length) + '/' + pad(all.length);
   const empty = $('#empty');
   if (!all.length) {
@@ -811,7 +828,7 @@ function openItem(id, fromDetail = false) {
   const v = it ? it.values || {} : {};
   const cats = [...c.categories];
   if (it && it.category && !cats.includes(it.category)) cats.push(it.category);
-  const body = `<div class="field"><label>Fotos</label><div class="photos" id="photos"></div><input type="file" id="photoInput" accept="image/*" multiple hidden><div id="aiRow"></div></div>
+  const body = `<div class="field"><label>Fotos</label><div class="photos" id="photos"></div><input type="file" id="photoInput" accept="image/*" multiple hidden><div id="photoHint"></div><div id="aiRow"></div></div>
     <div class="field"><label>Nombre <span class="req">obligatorio</span></label><input type="text" id="f_name" value="${esc(it ? it.name : '')}"></div>
     <div class="field"><label>Categoría</label>
       <select id="f_cat"><option value="">Sin categoría</option>${cats.map(x => `<option value="${esc(x)}" ${it && it.category === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="__new__">+ Nueva categoría…</option></select>
@@ -1290,10 +1307,12 @@ const A = {
   account: () => openProfile(),
   login: () => login(),
   logout: () => { closePage(); closeSheet(); if (fb) fb.signOut(auth); },
+  sortMenu: el => openMenu(el, { key: '__sort', label: 'Ordenar por', options: SORTS.map(x => ({ v: x.v, l: x.l })) }),
   filterMenu: el => { const d = filterDefs(curCol()).find(x => x.key === el.dataset.k); if (d) openMenu(el, d); },
   filterPick: el => {
     const k = el.dataset.k, v = el.dataset.v;
-    if (k === '__cat') filters.category = v || 'Todas';
+    if (k === '__sort') filters.sort = v;
+    else if (k === '__cat') filters.category = v || 'Todas';
     else if (v) filters.vals[k] = v;
     else delete filters.vals[k];
     closeMenu(); renderDials(); renderGrid();
@@ -1406,6 +1425,75 @@ const A = {
   }
 };
 
+/* ----- reordenar fotos: mantener pulsada y arrastrar ----- */
+let pd = null, photoDragged = false;
+function photoLayout(order) {
+  document.querySelectorAll('#photos .ph:not(.add)').forEach(el => { el.style.order = order.indexOf(+el.dataset.pi); });
+  const add = document.querySelector('#photos .ph.add');
+  if (add) add.style.order = 99;
+}
+function startPhotoDrag() {
+  if (!pd) return;
+  const thumbs = [...document.querySelectorAll('#photos .ph:not(.add)')];
+  const r = pd.el.getBoundingClientRect();
+  pd.active = true;
+  pd.order = thumbs.map(t => +t.dataset.pi);
+  pd.offX = pd.x - r.left; pd.offY = pd.y - r.top;
+  pd.el.style.opacity = '.3';
+  const g = document.createElement('div');
+  g.className = 'ph';
+  g.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;z-index:99;pointer-events:none;transform:scale(1.1);box-shadow:0 10px 26px rgba(0,0,0,.55)`;
+  const im = pd.el.querySelector('img');
+  if (im) g.innerHTML = `<img src="${im.src}" alt="">`;
+  document.body.appendChild(g);
+  pd.ghost = g;
+  try { navigator.vibrate && navigator.vibrate(12); } catch (err) { /* ignorar */ }
+}
+function endPhotoDrag() {
+  if (!pd) return;
+  clearTimeout(pd.timer);
+  const d = pd;
+  pd = null;
+  if (!d.active) return;
+  if (d.ghost) d.ghost.remove();
+  photoDragged = true;
+  setTimeout(() => { photoDragged = false; }, 450);
+  if (form) {
+    const old = form.photos;
+    if (d.order && d.order.length === old.length) form.photos = d.order.map(i => old[i]);
+    renderPhotos();
+  }
+}
+document.addEventListener('pointerdown', e => {
+  const el = e.target.closest && e.target.closest('#photos .ph:not(.add)');
+  if (!el || !form || e.target.closest('[data-act="rmPhoto"]')) return;
+  pd = { el, x: e.clientX, y: e.clientY, active: false, timer: setTimeout(startPhotoDrag, 350) };
+});
+document.addEventListener('pointermove', e => {
+  if (!pd) return;
+  if (!pd.active) {
+    if (Math.abs(e.clientX - pd.x) > 8 || Math.abs(e.clientY - pd.y) > 8) { clearTimeout(pd.timer); pd = null; }
+    return;
+  }
+  pd.ghost.style.left = (e.clientX - pd.offX) + 'px';
+  pd.ghost.style.top = (e.clientY - pd.offY) + 'px';
+  const thumbs = [...document.querySelectorAll('#photos .ph:not(.add)')];
+  const over = thumbs.find(t => {
+    if (t === pd.el) return false;
+    const b = t.getBoundingClientRect();
+    return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
+  });
+  if (over) {
+    const from = pd.order.indexOf(+pd.el.dataset.pi), to = pd.order.indexOf(+over.dataset.pi);
+    pd.order.splice(to, 0, pd.order.splice(from, 1)[0]);
+    photoLayout(pd.order);
+  }
+});
+document.addEventListener('pointerup', endPhotoDrag);
+document.addEventListener('pointercancel', endPhotoDrag);
+document.addEventListener('touchmove', e => { if (pd && pd.active) e.preventDefault(); }, { passive: false });
+document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('#photos .ph')) e.preventDefault(); });
+
 let lpTimer = null, lpStart = null, lpDone = false;
 function lpCancel() { clearTimeout(lpTimer); lpTimer = null; }
 document.addEventListener('pointerdown', e => {
@@ -1429,9 +1517,10 @@ document.addEventListener('contextmenu', e => { if (e.target.closest && e.target
 
 document.addEventListener('click', e => {
   if (lpDone) { lpDone = false; e.preventDefault(); return; }
+  if (photoDragged) { photoDragged = false; e.preventDefault(); return; }
   const menu = document.querySelector('.menu');
   if (menu && !e.target.closest('.menu')) {
-    const same = e.target.closest('[data-act="filterMenu"]');
+    const same = e.target.closest('[data-act="filterMenu"],[data-act="sortMenu"]');
     closeMenu();
     if (same && same.dataset.k === menu.dataset.k) return;
   }
